@@ -1,242 +1,185 @@
 package com.example.zen
 
 import android.accessibilityservice.AccessibilityService
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.util.Log
+import com.example.zen.data.ZenPrefs
+import com.example.zen.persona.LineLibrary
 
+/**
+ * Core engine. Detects when the user is on a short-form feed in a guarded app and intercepts
+ * doom-scrolling.
+ *
+ * Detection is behavioural (scroll count within a feed session) rather than fragile screen
+ * fingerprinting:
+ *  - **Direct entry** (you opened the feed yourself): block on entry, unless the user has configured
+ *    a scroll allowance.
+ *  - **Friend Pass** (you arrived from a DM within [FRIEND_PASS_WINDOW_MS]): the landed video is
+ *    allowed; the moment you scroll to the next one, you're intercepted.
+ */
 class ZenAccessibilityService : AccessibilityService() {
 
     private val TAG = "ZenBlocker"
 
-    private val targetPackages = listOf(
-        "com.instagram.android", // Instagram
-        "com.google.android.youtube", // YouTube
-        "com.zhiliaoapp.musically", // TikTok
-        "com.ss.android.ugc.trill", // TikTok (some regions)
-        "com.snapchat.android" // Snapchat
-    )
+    private lateinit var prefs: ZenPrefs
+    private var overlay: InterceptionOverlay? = null
 
-    private val messagingPackages = listOf(
+    private val messagingPackages = setOf(
         "com.whatsapp",
         "org.telegram.messenger",
-        "com.facebook.orca", // Messenger
+        "com.facebook.orca",
         "com.discord",
         "com.google.android.apps.messaging",
         "com.samsung.android.messaging"
     )
+    private val tiktokPackages = setOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill")
 
     private var lastDirectMessageTime = 0L
-    private var isFriendPassActive = false
-    private var firstReelSignature = ""
     private var lastBlockTime = 0L
+
+    // Current short-form "session" state.
+    private var sessionPackage: String? = null
+    private var sessionScrolls = 0
+    private var sessionFriendPass = false
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        prefs = ZenPrefs(applicationContext)
+        overlay = InterceptionOverlay(this)
+        Log.d(TAG, "Zen service connected")
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-
         val packageName = event.packageName?.toString() ?: return
 
-        // 1. If user is in a known external messaging app, record DM time
-        if (messagingPackages.contains(packageName)) {
+        if (packageName in messagingPackages) {
             lastDirectMessageTime = System.currentTimeMillis()
         }
 
-        // We only care about our target apps for blocking and internal DM tracking
-        if (!targetPackages.contains(packageName)) return
-
-        // 2. Cooldown check: if a block occurred recently, skip checks to allow screen transitions to settle
-        if (System.currentTimeMillis() - lastBlockTime < 1500) {
+        val guarded = prefs.blockedPackages
+        if (packageName !in guarded) {
+            resetSession()
             return
         }
 
-        val rootNode = rootInActiveWindow
+        if (System.currentTimeMillis() - lastBlockTime < BLOCK_COOLDOWN_MS) return
+
+        val root = rootInActiveWindow
 
         when (event.eventType) {
-            AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
-                handleScrollEvent(packageName, event)
-            }
+            AccessibilityEvent.TYPE_VIEW_SCROLLED -> handleScroll(packageName, root)
+
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                if (rootNode != null) {
-                    // Update DM time if user is inside Instagram or Snapchat DM screens
-                    if (packageName == "com.instagram.android" || packageName == "com.snapchat.android") {
-                        if (isDirectMessageScreen(rootNode, packageName)) {
-                            lastDirectMessageTime = System.currentTimeMillis()
-                            // If they are back in DM, naturally reset the friend pass
-                            if (isFriendPassActive) {
-                                Log.d(TAG, "User returned to DMs. Resetting Friend Pass.")
-                                isFriendPassActive = false
-                                firstReelSignature = ""
-                            }
-                        }
-                    }
-
-                    // Dynamically capture the signature once the video elements populate
-                    if (isFriendPassActive && firstReelSignature.isBlank()) {
-                        val currentSig = getScreenSignature(rootNode)
-                        if (currentSig.isNotBlank()) {
-                            firstReelSignature = currentSig
-                            Log.d(TAG, "Friend Pass signature initialized: $firstReelSignature")
-                        }
-                    }
-
-                    // If we have an active pass but navigated away from short-form content entirely
-                    if (isFriendPassActive && !isShortFormContent(rootNode)) {
-                        Log.d(TAG, "Navigated away from short-form content. Resetting Friend Pass.")
-                        isFriendPassActive = false
-                        firstReelSignature = ""
-                    }
+                if (root != null && isDirectMessageScreen(root, packageName)) {
+                    lastDirectMessageTime = System.currentTimeMillis()
+                }
+                if (isShortForm(packageName, root)) {
+                    enterShortForm(packageName)
+                } else {
+                    resetSession()
                 }
             }
         }
     }
 
-    private fun handleScrollEvent(packageName: String, event: AccessibilityEvent) {
-        val rootNode = rootInActiveWindow ?: return
-
-        // TikTok is exclusively short-form, so treat the entire package as such
-        if (packageName.contains("zhiliaoapp") || packageName.contains("ugc.trill")) {
-            handleShortFormBlock("TikTok", rootNode)
+    private fun handleScroll(packageName: String, root: AccessibilityNodeInfo?) {
+        if (!isShortForm(packageName, root)) {
+            resetSession()
             return
         }
-
-        // For others, check if the current screen contains indicators of short-form content (Reels/Shorts/Spotlight)
-        if (isShortFormContent(rootNode)) {
-            handleShortFormBlock(packageName, rootNode)
+        enterShortForm(packageName)
+        sessionScrolls++
+        if (sessionScrolls > currentAllowance()) {
+            block(packageName)
         }
     }
 
-    private fun handleShortFormBlock(packageName: String, rootNode: AccessibilityNodeInfo) {
-        val currentSignature = getScreenSignature(rootNode)
+    /** Begin a feed session (idempotent for the same package). */
+    private fun enterShortForm(packageName: String) {
+        if (sessionPackage == packageName) return
+        sessionPackage = packageName
+        sessionScrolls = 0
+        sessionFriendPass = prefs.friendPassEnabled &&
+            (System.currentTimeMillis() - lastDirectMessageTime < FRIEND_PASS_WINDOW_MS)
 
-        if (isFriendPassActive) {
-            // If the pass is active, wait for the user to scroll to a DIFFERENT video
-            if (firstReelSignature.isNotBlank() && currentSignature.isNotBlank() && !signaturesMatch(firstReelSignature, currentSignature)) {
-                Log.d(TAG, "Friend Pass scroll detected in $packageName. Blocking and backing out.")
-                blockScroll(packageName)
-            }
-        } else {
-            // Check if we recently came from a messaging/DM application
-            val timeSinceDM = System.currentTimeMillis() - lastDirectMessageTime
-            if (timeSinceDM < 4000) {
-                isFriendPassActive = true
-                firstReelSignature = currentSignature
-                Log.d(TAG, "Friend Pass activated in $packageName. Signature: $firstReelSignature")
-            } else {
-                Log.d(TAG, "Direct short-form access in $packageName (no active pass). Blocking.")
-                blockScroll(packageName)
-            }
+        // Direct entry with no scroll allowance: block immediately on landing in the feed.
+        if (!sessionFriendPass && currentAllowance() == 0) {
+            block(packageName)
         }
     }
 
-    private fun blockScroll(appName: String) {
-        Log.d(TAG, "Blocked doom-scroll in $appName")
-        lastBlockTime = System.currentTimeMillis() // Set cooldown to prevent loops
-        RoastEngine.triggerRoast(this) // Roast the user ruthlessly
-        // Perform a global back action to return the user to the DMs or prior screen
+    /** Scrolls permitted before blocking. Friend Pass = block on first scroll past the landed video. */
+    private fun currentAllowance(): Int {
+        if (sessionFriendPass) return 0
+        val base = prefs.allowedScrolls
+        // Optional "earned / lenient" mode grants a little extra rope.
+        return if (prefs.earnedScrollsEnabled) base + 1 else base
+    }
+
+    private fun block(packageName: String) {
+        lastBlockTime = System.currentTimeMillis()
+        val relapseTier = prefs.recordSave()
+        val persona = prefs.persona
+        val line = LineLibrary.blockLine(persona, relapseTier)
+        Log.d(TAG, "Blocked $packageName (relapse #$relapseTier): $line")
+        overlay?.show(persona, line)
         performGlobalAction(GLOBAL_ACTION_BACK)
-        // Reset pass state
-        isFriendPassActive = false
-        firstReelSignature = ""
+        resetSession()
     }
 
-    private fun isShortFormContent(node: AccessibilityNodeInfo?, depth: Int = 0): Boolean {
-        if (node == null || depth > 8) return false
+    private fun resetSession() {
+        sessionPackage = null
+        sessionScrolls = 0
+        sessionFriendPass = false
+    }
 
+    private fun isShortForm(packageName: String, root: AccessibilityNodeInfo?): Boolean {
+        // TikTok is exclusively short-form.
+        if (packageName in tiktokPackages) return true
+        return root != null && containsShortFormIndicator(root, 0)
+    }
+
+    private fun containsShortFormIndicator(node: AccessibilityNodeInfo?, depth: Int): Boolean {
+        if (node == null || depth > 8) return false
+        val indicators = listOf("reels", "shorts", "spotlight", "for you")
         val text = node.text?.toString()?.lowercase()
         val desc = node.contentDescription?.toString()?.lowercase()
-
-        // Keywords that heavily indicate we are in the addictive short-form feed
-        val indicators = listOf("reels", "shorts", "spotlight", "for you")
-
         if (text != null && indicators.any { text.contains(it) }) return true
         if (desc != null && indicators.any { desc.contains(it) }) return true
-
         for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            if (isShortFormContent(child, depth + 1)) {
-                return true
-            }
+            if (containsShortFormIndicator(node.getChild(i), depth + 1)) return true
         }
         return false
     }
 
     private fun isDirectMessageScreen(node: AccessibilityNodeInfo?, packageName: String, depth: Int = 0): Boolean {
         if (node == null || depth > 8) return false
-
+        val keywords = when (packageName) {
+            "com.instagram.android" ->
+                listOf("message...", "messages", "direct", "chats", "active now", "write a message")
+            "com.snapchat.android" ->
+                listOf("chat", "send a chat", "new chat", "friends")
+            else -> return false
+        }
         val text = node.text?.toString()?.lowercase()
         val desc = node.contentDescription?.toString()?.lowercase()
-
-        if (packageName == "com.instagram.android") {
-            // Instagram DM indicators: message input box, Direct header, or messages keywords
-            val dmKeywords = listOf("message...", "messages", "direct", "chats", "active now", "write a message")
-            if (text != null && dmKeywords.any { text.contains(it) }) return true
-            if (desc != null && dmKeywords.any { desc.contains(it) }) return true
-        }
-
-        if (packageName == "com.snapchat.android") {
-            // Snapchat DM/Chat screen indicators
-            val dmKeywords = listOf("chat", "send a chat", "new chat", "friends")
-            if (text != null && dmKeywords.any { text.contains(it) }) return true
-            if (desc != null && dmKeywords.any { desc.contains(it) }) return true
-        }
-
+        if (text != null && keywords.any { text.contains(it) }) return true
+        if (desc != null && keywords.any { desc.contains(it) }) return true
         for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            if (isDirectMessageScreen(child, packageName, depth + 1)) {
-                return true
-            }
+            if (isDirectMessageScreen(node.getChild(i), packageName, depth + 1)) return true
         }
         return false
     }
 
-    private fun getScreenSignature(node: AccessibilityNodeInfo?): String {
-        val texts = mutableListOf<String>()
-        collectAllText(node, texts)
-
-        // Static keywords to exclude so they don't skew the signature matching
-        val staticExclusions = setOf(
-            "like", "comment", "share", "remix", "subscribe",
-            "reels", "shorts", "spotlight", "for you", "following",
-            "follow", "views", "likes", "comments", "add comment...", "reply"
-        )
-
-        val dynamicTexts = texts.filter {
-            val clean = it.lowercase().trim()
-            clean !in staticExclusions && clean.length > 2
-        }
-
-        return dynamicTexts.joinToString("|")
-    }
-
-    private fun collectAllText(node: AccessibilityNodeInfo?, list: MutableList<String>) {
-        if (node == null) return
-        val text = node.text?.toString()
-        if (!text.isNullOrBlank()) {
-            list.add(text)
-        }
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            collectAllText(child, list)
-        }
-    }
-
-    private fun signaturesMatch(sig1: String, sig2: String): Boolean {
-        if (sig1 == sig2) return true
-        if (sig1.isBlank() || sig2.isBlank()) return true
-
-        val words1 = sig1.split("|").toSet()
-        val words2 = sig2.split("|").toSet()
-
-        val intersection = words1.intersect(words2)
-        if (words1.isEmpty() || words2.isEmpty()) return true
-
-        val overlapRatio = intersection.size.toFloat() / minOf(words1.size, words2.size).toFloat()
-        // If there's more than 30% overlap of dynamic terms/usernames, consider it the same Reel
-        return overlapRatio > 0.3f
-    }
-
     override fun onInterrupt() {
-        Log.d(TAG, "Zen Service Interrupted")
+        Log.d(TAG, "Zen service interrupted")
+    }
+
+    companion object {
+        private const val BLOCK_COOLDOWN_MS = 1500L
+        private const val FRIEND_PASS_WINDOW_MS = 4000L
     }
 }

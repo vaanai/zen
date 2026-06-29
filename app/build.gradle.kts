@@ -8,7 +8,8 @@ android {
     namespace = "com.example.zen"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.zen"
+        // Distinct from the source `namespace` (com.example.zen) — Google Play rejects com.example.* ids.
+        applicationId = "com.zenblocker.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -61,6 +62,7 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.material3)
+  implementation(libs.androidx.compose.material.icons.core)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
   // Instrumented tests

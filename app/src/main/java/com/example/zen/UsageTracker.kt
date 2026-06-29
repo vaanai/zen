@@ -5,17 +5,13 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.os.Process
 import com.example.zen.data.AppUsageItem
+import com.example.zen.data.KnownApps
 import java.util.Calendar
 
 class UsageTracker(private val context: Context) {
 
-    private val targetApps = mapOf(
-        "com.instagram.android" to Pair("Instagram", "#E1306C"),
-        "com.google.android.youtube" to Pair("YouTube", "#FF0000"),
-        "com.zhiliaoapp.musically" to Pair("TikTok", "#00F2FE"),
-        "com.ss.android.ugc.trill" to Pair("TikTok", "#00F2FE"),
-        "com.snapchat.android" to Pair("Snapchat", "#FFFC00")
-    )
+    private val targetApps: Map<String, Pair<String, String>> =
+        KnownApps.apps.flatMap { app -> app.packages.map { it to Pair(app.name, app.colorHex) } }.toMap()
 
     fun isUsageAccessGranted(): Boolean {
         val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
