@@ -2,6 +2,8 @@ package com.example.zen.persona
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import com.example.zen.ui.design.FrauncesFamily
+import com.example.zen.ui.design.InterFamily
 
 /**
  * Single source of truth for a persona's visual identity. Used by both the Compose UI
@@ -45,7 +47,7 @@ object PersonaPalette {
         textSecondary = Color(0xFF9CA3AF),
         cardBackground = Color(0x15FFFFFF),
         cardBorder = Color(0x1CFFFFFF),
-        fontFamily = FontFamily.Default,
+        fontFamily = InterFamily,
         isLight = false
     )
 
@@ -61,7 +63,7 @@ object PersonaPalette {
         textSecondary = Color(0xFFA9BE9C),
         cardBackground = Color(0x14FFFFFF),
         cardBorder = Color(0x22B6FF3C),
-        fontFamily = FontFamily.Default,
+        fontFamily = InterFamily,
         isLight = false
     )
 
@@ -77,7 +79,7 @@ object PersonaPalette {
         textSecondary = Color(0xFF8A8273),
         cardBackground = Color(0x0F3A352C),
         cardBorder = Color(0x1A3A352C),
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = InterFamily,
         isLight = true
     )
 
@@ -93,7 +95,7 @@ object PersonaPalette {
         textSecondary = Color(0xFF7A6A52),
         cardBackground = Color(0x122E2519),
         cardBorder = Color(0x222E2519),
-        fontFamily = FontFamily.Serif,
+        fontFamily = FrauncesFamily,
         isLight = true
     )
 }

@@ -1,11 +1,9 @@
 package com.example.zen.ui.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -16,7 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,6 +23,15 @@ import com.example.zen.data.KnownApps
 import com.example.zen.data.ZenPrefs
 import com.example.zen.persona.LocalPersonaColors
 import com.example.zen.persona.Persona
+import com.example.zen.ui.components.GlassCard
+import com.example.zen.ui.components.LocalHazeState
+import com.example.zen.ui.components.PrimaryButton
+import com.example.zen.ui.components.SecondaryButton
+import com.example.zen.ui.components.SectionHeader
+import com.example.zen.ui.design.ZenRadius
+import com.example.zen.ui.design.ZenSpacing
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
 
 @Composable
@@ -35,7 +43,6 @@ fun SettingsScreen(
 ) {
     val c = LocalPersonaColors.current
 
-    // Tick every second so the lock countdown updates and a finished cooldown auto-unlocks.
     var tick by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -45,38 +52,37 @@ fun SettingsScreen(
         }
     }
     val unlocked = remember(tick) { prefs.isUnlocked() }
+    val hazeState = rememberHazeState()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Brush.verticalGradient(c.gradient))
+            .hazeSource(hazeState)
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Top bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.textPrimary)
+        CompositionLocalProvider(LocalHazeState provides hazeState) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = ZenSpacing.md, vertical = ZenSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.textPrimary)
+                    }
+                    Text("Settings", style = MaterialTheme.typography.headlineSmall.copy(letterSpacing = 0.sp), color = c.textPrimary)
                 }
-                Text("Settings", color = c.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp)
-            ) {
-                if (!unlocked) {
-                    LockGate(prefs, tick)
-                } else {
-                    UnlockedSettings(prefs, selectedPersona, onPersonaSelected)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = ZenSpacing.screenGutter)
+                ) {
+                    if (!unlocked) LockGate(prefs, tick) else UnlockedSettings(prefs, selectedPersona, onPersonaSelected)
+                    Spacer(Modifier.height(ZenSpacing.xxl))
                 }
-                Spacer(Modifier.height(32.dp))
             }
         }
     }
@@ -90,31 +96,30 @@ private fun LockGate(prefs: ZenPrefs, tick: Int) {
     val cooldownPending = remember(tick) { prefs.isCooldownPending() }
     val remaining = remember(tick) { prefs.cooldownRemainingMs() }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = c.cardBackground),
-        shape = RoundedCornerShape(20.dp),
+    GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 24.dp)
-            .border(1.dp, c.cardBorder, RoundedCornerShape(20.dp))
+            .padding(top = ZenSpacing.xl),
+        shape = ZenRadius.hero,
+        contentPadding = ZenSpacing.xl
     ) {
-        Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.Default.Lock, null, tint = c.accent, modifier = Modifier.size(40.dp))
-            Spacer(Modifier.height(12.dp))
-            Text("Settings are locked", color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(ZenSpacing.md))
+            Text("Settings are locked", style = MaterialTheme.typography.titleSmall, color = c.textPrimary)
+            Spacer(Modifier.height(ZenSpacing.sm))
             Text(
                 "You committed to this on purpose. Changing it should take a moment of intention.",
-                color = c.textSecondary, fontSize = 13.sp, lineHeight = 18.sp,
+                style = MaterialTheme.typography.bodyMedium, color = c.textSecondary,
                 modifier = Modifier.fillMaxWidth()
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(ZenSpacing.xl))
 
             if (cooldownPending) {
-                Text("Unlocking in ${formatMs(remaining)}", color = c.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text("Stay on this screen — it'll open automatically.", color = c.textSecondary, fontSize = 12.sp)
-                Spacer(Modifier.height(12.dp))
+                Text("Unlocking in ${formatMs(remaining)}", style = MaterialTheme.typography.headlineSmall.copy(letterSpacing = 0.sp), color = c.accent)
+                Spacer(Modifier.height(ZenSpacing.xs))
+                Text("Stay on this screen — it'll open automatically.", style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+                Spacer(Modifier.height(ZenSpacing.md))
                 TextButton(onClick = { prefs.cancelCooldown() }) { Text("Cancel", color = c.textSecondary) }
             } else {
                 if (prefs.hasPassword()) {
@@ -130,28 +135,20 @@ private fun LockGate(prefs: ZenPrefs, tick: Int) {
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    if (error) Text("Wrong password.", color = c.danger, fontSize = 12.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = { if (!prefs.tryPassword(attempt)) error = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = c.accent),
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Unlock", color = c.gradient.first(), fontWeight = FontWeight.Bold) }
-                    Spacer(Modifier.height(8.dp))
+                    if (error) Text("Wrong password.", style = MaterialTheme.typography.bodySmall, color = c.danger)
+                    Spacer(Modifier.height(ZenSpacing.md))
+                    PrimaryButton("Unlock", onClick = { if (!prefs.tryPassword(attempt)) error = true }, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(ZenSpacing.sm))
                     TextButton(onClick = { prefs.beginCooldown() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Forgot password? Unlock after 2 minutes", color = c.textSecondary, fontSize = 13.sp)
+                        Text("Forgot password? Unlock after 2 minutes", color = c.textSecondary, style = MaterialTheme.typography.bodyMedium)
                     }
                 } else {
                     Text(
                         "No password set — unlocking just takes a 2-minute wait.",
-                        color = c.textSecondary, fontSize = 13.sp
+                        style = MaterialTheme.typography.bodyMedium, color = c.textSecondary
                     )
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = { prefs.beginCooldown() },
-                        colors = ButtonDefaults.buttonColors(containerColor = c.accent),
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Start 2-minute unlock", color = c.gradient.first(), fontWeight = FontWeight.Bold) }
+                    Spacer(Modifier.height(ZenSpacing.md))
+                    PrimaryButton("Start 2-minute unlock", onClick = { prefs.beginCooldown() }, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -166,7 +163,6 @@ private fun UnlockedSettings(
 ) {
     val c = LocalPersonaColors.current
 
-    // Local mirrors of prefs so the UI reacts immediately; each change writes through.
     val selectedApps = remember {
         mutableStateListOf<String>().apply {
             addAll(KnownApps.apps.filter { app -> app.packages.any { it in prefs.blockedPackages } }.map { it.name })
@@ -183,26 +179,26 @@ private fun UnlockedSettings(
         prefs.blockedPackages = KnownApps.apps.filter { it.name in selectedApps }.flatMap { it.packages }.toSet()
     }
 
-    Spacer(Modifier.height(8.dp))
-    Section("PERSONA")
+    Spacer(Modifier.height(ZenSpacing.sm))
+    SectionHeader("Persona")
     Persona.entries.forEach { p ->
         val isSel = p == selectedPersona
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = ZenSpacing.xs)
                 .clickable { prefs.persona = p; onPersonaSelected(p) },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(p.glyph, fontSize = 20.sp)
-            Spacer(Modifier.width(12.dp))
-            Text(p.displayName, color = c.textPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            Text(p.glyph, style = TextStyle(fontFamily = FontFamily.Default, fontSize = 20.sp))
+            Spacer(Modifier.width(ZenSpacing.md))
+            Text(p.displayName, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary, modifier = Modifier.weight(1f))
             if (isSel) Icon(Icons.Default.CheckCircle, "Selected", tint = c.accent)
         }
     }
 
-    Spacer(Modifier.height(20.dp))
-    Section("GUARDED APPS")
+    Spacer(Modifier.height(ZenSpacing.xl))
+    SectionHeader("Guarded apps")
     KnownApps.apps.forEach { app ->
         ToggleRow(app.name, null, app.name in selectedApps) { on ->
             if (on) selectedApps.add(app.name) else selectedApps.remove(app.name)
@@ -210,18 +206,18 @@ private fun UnlockedSettings(
         }
     }
 
-    Spacer(Modifier.height(20.dp))
-    Section("BLOCKING")
+    Spacer(Modifier.height(ZenSpacing.xl))
+    SectionHeader("Blocking")
     ToggleRow(
         "Friend Pass",
         "Allow the one video a friend DM'd you; block the next scroll.",
         friendPass
     ) { friendPass = it; prefs.friendPassEnabled = it }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(ZenSpacing.md))
     Text(
         if (allowedScrolls.toInt() == 0) "Strictness: block the moment you open a feed"
         else "Strictness: allow ${allowedScrolls.toInt()} scroll(s) before blocking",
-        color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold
+        style = MaterialTheme.typography.titleMedium, color = c.textPrimary
     )
     Slider(
         value = allowedScrolls,
@@ -231,9 +227,9 @@ private fun UnlockedSettings(
         colors = SliderDefaults.colors(thumbColor = c.accent, activeTrackColor = c.accent)
     )
 
-    Spacer(Modifier.height(8.dp))
-    Section("GOALS")
-    Text("Daily screen-time goal: ${dailyCap.toInt()} min", color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    Spacer(Modifier.height(ZenSpacing.sm))
+    SectionHeader("Goals")
+    Text("Daily screen-time goal: ${dailyCap.toInt()} min", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
     Slider(
         value = dailyCap,
         onValueChange = { dailyCap = it; prefs.dailyCapMinutes = it.toInt() },
@@ -247,8 +243,8 @@ private fun UnlockedSettings(
         earned
     ) { earned = it; prefs.earnedScrollsEnabled = it }
 
-    Spacer(Modifier.height(20.dp))
-    Section("COMMITMENT LOCK")
+    Spacer(Modifier.height(ZenSpacing.xl))
+    SectionHeader("Commitment lock")
     OutlinedTextField(
         value = newPassword,
         onValueChange = { if (it.length <= ZenPrefs.PASSWORD_LENGTH) newPassword = it },
@@ -258,7 +254,7 @@ private fun UnlockedSettings(
         supportingText = { Text("${newPassword.length} / ${ZenPrefs.PASSWORD_LENGTH}") },
         trailingIcon = {
             TextButton(onClick = { showPassword = !showPassword }) {
-                Text(if (showPassword) "Hide" else "Show", color = c.accent, fontSize = 12.sp)
+                Text(if (showPassword) "Hide" else "Show", color = c.accent, style = MaterialTheme.typography.labelSmall)
             }
         },
         colors = OutlinedTextFieldDefaults.colors(
@@ -266,32 +262,21 @@ private fun UnlockedSettings(
         ),
         modifier = Modifier.fillMaxWidth()
     )
-    Button(
+    PrimaryButton(
+        text = "Save password",
         onClick = {
             if (newPassword.isEmpty() || newPassword.length == ZenPrefs.PASSWORD_LENGTH) {
                 prefs.lockPassword = newPassword
             }
         },
         enabled = newPassword.isEmpty() || newPassword.length == ZenPrefs.PASSWORD_LENGTH,
-        colors = ButtonDefaults.buttonColors(containerColor = c.accent),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp)
-    ) { Text("Save password", color = c.gradient.first(), fontWeight = FontWeight.Bold) }
-
-    Spacer(Modifier.height(20.dp))
-    OutlinedButton(onClick = { prefs.lockNow() }, modifier = Modifier.fillMaxWidth()) {
-        Text("Lock settings now", color = c.textPrimary)
-    }
-}
-
-@Composable
-private fun Section(text: String) {
-    val c = LocalPersonaColors.current
-    Text(
-        text, color = c.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-        letterSpacing = 2.sp, modifier = Modifier.padding(bottom = 8.dp)
+            .padding(top = ZenSpacing.sm)
     )
+
+    Spacer(Modifier.height(ZenSpacing.xl))
+    SecondaryButton("Lock settings now", onClick = { prefs.lockNow() }, modifier = Modifier.fillMaxWidth())
 }
 
 @Composable
@@ -300,12 +285,12 @@ private fun ToggleRow(title: String, desc: String?, checked: Boolean, onChange: 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = ZenSpacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = c.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            if (desc != null) Text(desc, color = c.textSecondary, fontSize = 12.sp, lineHeight = 16.sp)
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+            if (desc != null) Text(desc, style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
         }
         Switch(
             checked = checked,

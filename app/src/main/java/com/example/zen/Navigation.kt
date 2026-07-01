@@ -1,5 +1,11 @@
 package com.example.zen
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +67,14 @@ fun ZenApp() {
                 NavDisplay(
                     backStack = backStack,
                     onBack = { backStack.removeLastOrNull() },
+                    transitionSpec = {
+                        (fadeIn(tween(320)) + slideInHorizontally(tween(320)) { it / 10 }) togetherWith
+                            fadeOut(tween(180))
+                    },
+                    popTransitionSpec = {
+                        fadeIn(tween(280)) togetherWith
+                            (fadeOut(tween(220)) + slideOutHorizontally(tween(220)) { it / 10 })
+                    },
                     entryProvider = entryProvider {
                         entry<Onboarding> {
                             OnboardingScreen(
