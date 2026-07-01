@@ -7,6 +7,9 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,3 +36,20 @@ jobs:
         name: zen-debug-apk
         path: app/build/outputs/apk/debug/app-debug.apk
         if-no-files-found: error
+
+    # Publish a "latest" GitHub Release with the APK attached, so it can be
+    # downloaded directly on a phone (no login, no zip, no expiry) from:
+    #   https://github.com/<owner>/<repo>/releases/latest
+    - name: Rename APK
+      if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+      run: cp app/build/outputs/apk/debug/app-debug.apk zen.apk
+
+    - name: Publish to Release
+      if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: Latest build
+        body: "Latest Zen build. Install zen.apk directly on your phone."
+        files: zen.apk
+        make_latest: true
