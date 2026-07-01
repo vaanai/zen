@@ -12,14 +12,31 @@ android {
         applicationId = "com.zenblocker.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+    }
+
+    signingConfigs {
+        // A fixed keystore committed to the repo so every build — local or CI — is signed with the
+        // SAME key. Without this, GitHub's ephemeral runner generates a fresh debug key per run, so
+        // each APK has a different signature and Android refuses to install one over another
+        // ("App not installed"). This is a self-distribution key, not a Play Store secret.
+        create("zen") {
+            storeFile = file("zen-release.keystore")
+            storePassword = "zenblocker"
+            keyAlias = "zen"
+            keyPassword = "zenblocker"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("zen")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("zen")
         }
     }
     compileOptions {

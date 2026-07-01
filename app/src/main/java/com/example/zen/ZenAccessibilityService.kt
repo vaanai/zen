@@ -43,11 +43,13 @@ class ZenAccessibilityService : AccessibilityService() {
     private var sessionScrolls = 0
     private var sessionFriendPass = false
 
+    private var lastDumpTime = 0L
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         prefs = ZenPrefs(applicationContext)
         overlay = InterceptionOverlay(this)
-        Log.d(TAG, "Zen service connected")
+        Log.d(TAG, "Zen service connected. Guarding: ${prefs.blockedPackages}")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -73,6 +75,10 @@ class ZenAccessibilityService : AccessibilityService() {
 
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                // Diagnostic: dump what this app actually exposes so we can tune detection from a
+                // real logcat (`adb logcat -s ZenScan`). Throttled so it doesn't flood.
+                maybeDumpTree(packageName, root)
+
                 if (root != null && isDirectMessageScreen(root, packageName)) {
                     lastDirectMessageTime = System.currentTimeMillis()
                 }
@@ -104,6 +110,7 @@ class ZenAccessibilityService : AccessibilityService() {
         sessionScrolls = 0
         sessionFriendPass = prefs.friendPassEnabled &&
             (System.currentTimeMillis() - lastDirectMessageTime < FRIEND_PASS_WINDOW_MS)
+        Log.d(TAG, "Entered short-form feed in $packageName (friendPass=$sessionFriendPass, allowance=${currentAllowance()})")
 
         // Direct entry with no scroll allowance: block immediately on landing in the feed.
         if (!sessionFriendPass && currentAllowance() == 0) {
@@ -139,20 +146,92 @@ class ZenAccessibilityService : AccessibilityService() {
     private fun isShortForm(packageName: String, root: AccessibilityNodeInfo?): Boolean {
         // TikTok is exclusively short-form.
         if (packageName in tiktokPackages) return true
-        return root != null && containsShortFormIndicator(root, 0)
+        if (root == null) return false
+        return treeAnyMatch(root) { node -> matchesShortForm(packageName, node) }
     }
 
-    private fun containsShortFormIndicator(node: AccessibilityNodeInfo?, depth: Int): Boolean {
-        if (node == null || depth > 8) return false
-        val indicators = listOf("reels", "shorts", "spotlight", "for you")
+    /**
+     * Whether a single node identifies the *active short-form player* (not merely a nav tab).
+     *
+     * Resource-ids are the reliable discriminator: the "Reels"/"Shorts" bottom-nav tabs are present
+     * on every screen (including the home feed), so matching on the words alone would false-positive
+     * everywhere. The reel/short *viewer* exposes distinctive container ids instead. Text is only a
+     * last-resort fallback for apps whose ids are fully obfuscated (e.g. Snapchat Spotlight).
+     */
+    private fun matchesShortForm(pkg: String, node: AccessibilityNodeInfo): Boolean {
+        val id = node.viewIdResourceName?.lowercase()
         val text = node.text?.toString()?.lowercase()
         val desc = node.contentDescription?.toString()?.lowercase()
-        if (text != null && indicators.any { text.contains(it) }) return true
-        if (desc != null && indicators.any { desc.contains(it) }) return true
-        for (i in 0 until node.childCount) {
-            if (containsShortFormIndicator(node.getChild(i), depth + 1)) return true
+        return when (pkg) {
+            "com.instagram.android" ->
+                idContains(id, "clips_viewer", "clips_video", "reel_viewer", "reel_feed")
+            "com.google.android.youtube" ->
+                idContains(id, "reel_recycler", "reel_player", "shorts_player", "reel_watch")
+            "com.snapchat.android" ->
+                idContains(id, "spotlight", "discover_feed") || anyContains(text, desc, "spotlight")
+            else -> anyContains(text, desc, "reels", "shorts", "spotlight", "for you")
+        }
+    }
+
+    private fun idContains(id: String?, vararg needles: String): Boolean =
+        id != null && needles.any { id.contains(it) }
+
+    private fun anyContains(text: String?, desc: String?, vararg needles: String): Boolean =
+        (text != null && needles.any { text.contains(it) }) ||
+            (desc != null && needles.any { desc.contains(it) })
+
+    /** Depth-bounded, node-count-bounded full-tree search that short-circuits on the first match. */
+    private fun treeAnyMatch(root: AccessibilityNodeInfo, predicate: (AccessibilityNodeInfo) -> Boolean): Boolean {
+        var visited = 0
+        val stack = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+        stack.addLast(root to 0)
+        while (stack.isNotEmpty()) {
+            val (node, depth) = stack.removeLast()
+            if (visited++ > MAX_NODES) break
+            if (predicate(node)) return true
+            if (depth < MAX_DEPTH) {
+                for (i in 0 until node.childCount) {
+                    val child = node.getChild(i) ?: continue
+                    stack.addLast(child to depth + 1)
+                }
+            }
         }
         return false
+    }
+
+    /**
+     * Logs the resource-ids / text / content-descriptions the current screen exposes, throttled to
+     * once per [DUMP_THROTTLE_MS]. This is how we learn each app's *real* ids when testing on-device:
+     * `adb logcat -s ZenScan`. Only nodes carrying an id or visible text are logged, capped in count.
+     */
+    private fun maybeDumpTree(packageName: String, root: AccessibilityNodeInfo?) {
+        if (root == null) return
+        val now = System.currentTimeMillis()
+        if (now - lastDumpTime < DUMP_THROTTLE_MS) return
+        lastDumpTime = now
+
+        Log.d(SCAN_TAG, "--- window in $packageName (shortForm=${isShortForm(packageName, root)}) ---")
+        var visited = 0
+        var logged = 0
+        val stack = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+        stack.addLast(root to 0)
+        while (stack.isNotEmpty() && logged < MAX_DUMP_LINES) {
+            val (node, depth) = stack.removeLast()
+            if (visited++ > MAX_NODES) break
+            val id = node.viewIdResourceName
+            val text = node.text?.toString()?.takeIf { it.isNotBlank() }
+            val desc = node.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+            if (id != null || text != null || desc != null) {
+                Log.d(SCAN_TAG, "id=$id text=$text desc=$desc")
+                logged++
+            }
+            if (depth < MAX_DEPTH) {
+                for (i in 0 until node.childCount) {
+                    val child = node.getChild(i) ?: continue
+                    stack.addLast(child to depth + 1)
+                }
+            }
+        }
     }
 
     private fun isDirectMessageScreen(node: AccessibilityNodeInfo?, packageName: String, depth: Int = 0): Boolean {
@@ -179,7 +258,12 @@ class ZenAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val SCAN_TAG = "ZenScan"
         private const val BLOCK_COOLDOWN_MS = 1500L
         private const val FRIEND_PASS_WINDOW_MS = 4000L
+        private const val MAX_DEPTH = 30
+        private const val MAX_NODES = 2000
+        private const val DUMP_THROTTLE_MS = 2000L
+        private const val MAX_DUMP_LINES = 60
     }
 }
