@@ -12,15 +12,13 @@ import androidx.compose.ui.unit.sp
  * scale. Sizes / weights / tracking are defined once here instead of inline per composable.
  *
  * Role → usage mapping used across the UI:
- *  - displayLarge  → the hero number (saves today)
- *  - headlineSmall → persona name header
- *  - titleMedium   → card titles
- *  - titleSmall    → stat-chip values
- *  - bodyMedium    → card descriptions / help copy
- *  - bodySmall     → secondary hints
+ *  - headlineSmall → screen titles and the Zen wordmark (no tracking)
+ *  - titleMedium   → row titles
+ *  - bodyMedium    → descriptions
+ *  - bodySmall     → captions
  *  - labelLarge    → buttons
  *  - labelMedium   → section labels (all-caps, tracked)
- *  - labelSmall    → status badges / chip captions (all-caps, tracked)
+ *  - labelSmall    → status captions (all-caps, tracked)
  */
 fun personaTypography(fontFamily: FontFamily): Typography = Typography(
     displayLarge = TextStyle(
@@ -35,7 +33,7 @@ fun personaTypography(fontFamily: FontFamily): Typography = Typography(
         fontWeight = FontWeight.Bold,
         fontSize = 26.sp,
         lineHeight = 30.sp,
-        letterSpacing = 3.sp
+        letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
         fontFamily = fontFamily,

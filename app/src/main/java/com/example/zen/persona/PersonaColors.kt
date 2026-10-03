@@ -77,8 +77,8 @@ object PersonaPalette {
         warn = Color(0xFFC19A5B),
         textPrimary = Color(0xFF3A352C),
         textSecondary = Color(0xFF8A8273),
-        cardBackground = Color(0x0F3A352C),
-        cardBorder = Color(0x1A3A352C),
+        cardBackground = Color(0xF2FFF9F1),
+        cardBorder = Color(0x263A352C),
         fontFamily = InterFamily,
         isLight = true
     )
@@ -93,8 +93,8 @@ object PersonaPalette {
         warn = Color(0xFFA9803F),
         textPrimary = Color(0xFF2E2519),
         textSecondary = Color(0xFF7A6A52),
-        cardBackground = Color(0x122E2519),
-        cardBorder = Color(0x222E2519),
+        cardBackground = Color(0xF2FBF6EA),
+        cardBorder = Color(0x2E2E2519),
         fontFamily = FrauncesFamily,
         isLight = true
     )

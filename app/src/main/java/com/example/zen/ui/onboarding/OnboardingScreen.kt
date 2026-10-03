@@ -3,39 +3,54 @@ package com.example.zen.ui.onboarding
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.zen.R
+import com.example.zen.data.GuardMode
 import com.example.zen.data.KnownApps
-import com.example.zen.data.RuleCopy
 import com.example.zen.data.ZenPrefs
-import com.example.zen.persona.LineLibrary
 import com.example.zen.persona.LocalPersonaColors
 import com.example.zen.persona.Persona
-import com.example.zen.ui.components.GlassCard
+import com.example.zen.ui.components.AppRuleRows
 import com.example.zen.ui.components.LocalHazeState
+import com.example.zen.ui.components.PersonaCards
 import com.example.zen.ui.components.PrimaryButton
+import com.example.zen.ui.components.RuleModes
 import com.example.zen.ui.components.RuleStatement
 import com.example.zen.ui.components.SecondaryButton
+import com.example.zen.ui.components.SectionHeader
+import com.example.zen.ui.components.ZenRow
 import com.example.zen.ui.design.ZenRadius
 import com.example.zen.ui.design.ZenSpacing
 import dev.chrisbanes.haze.hazeSource
@@ -53,14 +68,22 @@ fun OnboardingScreen(
     val c = LocalPersonaColors.current
     val context = LocalContext.current
     var step by rememberSaveable { mutableStateOf(0) }
-
-    val selectedApps = remember {
+    val selectedApps = rememberSaveable(
+        saver = listSaver(
+            save = { apps: SnapshotStateList<String> -> apps.toList() },
+            restore = { saved -> mutableStateListOf<String>().apply { addAll(saved) } }
+        )
+    ) {
         mutableStateListOf<String>().apply {
-            addAll(KnownApps.apps.filter { app -> app.packages.any { it in prefs.blockedPackages } }.map { it.name })
+            addAll(
+                KnownApps.apps
+                    .filter { app -> app.packages.any { it in prefs.blockedPackages } }
+                    .map { it.name }
+            )
         }
     }
-    var friendPass by rememberSaveable { mutableStateOf(prefs.friendPassEnabled) }
-    var dailyCap by rememberSaveable { mutableStateOf(prefs.dailyCapMinutes.toFloat()) }
+    var friendPass by rememberSaveable { mutableStateOf(true) }
+    var allowedScrolls by rememberSaveable { mutableIntStateOf(0) }
     var password by rememberSaveable { mutableStateOf("") }
 
     val totalSteps = 4
@@ -97,63 +120,62 @@ fun OnboardingScreen(
 
                 Box(modifier = Modifier.weight(1f)) {
                     when (step) {
-                        0 -> StepPersona(selectedPersona, onPersonaSelected)
-                        1 -> StepPermissions(
-                            isAccessibilityEnabled = isAccessibilityEnabled,
-                            isUsageEnabled = isUsageEnabled,
-                            onOpenAccessibility = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
-                            onOpenUsage = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
-                        )
-                        2 -> StepConfig(
+                        0 -> StepRule(
                             selectedApps = selectedApps,
                             friendPass = friendPass,
-                            allowedScrolls = prefs.allowedScrolls,
-                            onFriendPassChange = { friendPass = it },
-                            dailyCap = dailyCap,
-                            onDailyCapChange = { dailyCap = it }
+                            allowedScrolls = allowedScrolls,
+                            onRuleChange = { pass, scrolls ->
+                                friendPass = pass
+                                allowedScrolls = scrolls
+                            }
                         )
+                        1 -> StepAccessibility(
+                            isAccessibilityEnabled = isAccessibilityEnabled,
+                            isUsageEnabled = isUsageEnabled,
+                            onOpenAccessibility = {
+                                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                            },
+                            onOpenUsage = {
+                                context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                            }
+                        )
+                        2 -> StepVoice(selectedPersona, onPersonaSelected)
                         3 -> StepLock(password = password, onPasswordChange = { password = it })
                     }
                 }
 
                 Spacer(Modifier.height(ZenSpacing.lg))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(ZenSpacing.md)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth()) {
                     if (step > 0) {
-                        SecondaryButton("Back", onClick = { step-- }, modifier = Modifier.weight(1f))
+                        SecondaryButton(
+                            text = "Back",
+                            onClick = { step-- },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = ZenSpacing.md)
+                        )
                     }
-                    val passwordWouldBeDropped =
-                        password.isNotEmpty() && password.length != ZenPrefs.PASSWORD_LENGTH
-                    val permissionsBlocked = step == 1 && !isAccessibilityEnabled
+                    val onAccessibilityStep = step == 1
                     PrimaryButton(
                         text = if (step < totalSteps - 1) "Continue" else "Begin",
                         onClick = {
-                            if (permissionsBlocked) return@PrimaryButton
                             if (step < totalSteps - 1) {
                                 step++
-                            } else if (!onboardingMayFinish(isAccessibilityEnabled, password)) {
-                                if (!isAccessibilityEnabled) step = 1
+                            } else if (!onboardingMayFinish(isAccessibilityEnabled)) {
+                                step = 1
                             } else {
                                 commit(
-                                    prefs,
-                                    selectedApps,
-                                    friendPass,
-                                    dailyCap.toInt(),
-                                    password,
-                                    isAccessibilityEnabled
+                                    prefs = prefs,
+                                    selectedAppNames = selectedApps,
+                                    friendPassEnabled = friendPass,
+                                    allowedScrolls = allowedScrolls,
+                                    password = password,
+                                    accessibilityEnabled = isAccessibilityEnabled
                                 )
                                 onFinish()
                             }
                         },
-                        enabled = when {
-                            permissionsBlocked -> false
-                            step < totalSteps - 1 -> true
-                            !isAccessibilityEnabled -> true
-                            passwordWouldBeDropped -> false
-                            else -> true
-                        },
+                        enabled = !onAccessibilityStep || isAccessibilityEnabled,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -163,35 +185,29 @@ fun OnboardingScreen(
 }
 
 /**
- * Blank keeps the cooldown as the only lock. Exactly [ZenPrefs.PASSWORD_LENGTH] is stored.
- * Any other length used to be discarded while onboarding still finished. Accessibility off
- * used to finish the same way. Neither may mark onboarding complete.
+ * Onboarding finishes only while accessibility is on. A password is optional at any length.
+ * A blank password keeps the cooldown as the only lock.
  */
-internal fun onboardingMayFinish(accessibilityEnabled: Boolean, password: String): Boolean {
-    if (!accessibilityEnabled) return false
-    if (password.isNotEmpty() && password.length != ZenPrefs.PASSWORD_LENGTH) return false
-    return true
-}
+internal fun onboardingMayFinish(accessibilityEnabled: Boolean): Boolean = accessibilityEnabled
 
 private fun commit(
     prefs: ZenPrefs,
     selectedAppNames: List<String>,
-    friendPass: Boolean,
-    dailyCap: Int,
+    friendPassEnabled: Boolean,
+    allowedScrolls: Int,
     password: String,
     accessibilityEnabled: Boolean
 ) {
-    if (!onboardingMayFinish(accessibilityEnabled, password)) return
-    val packages = KnownApps.apps
+    if (!onboardingMayFinish(accessibilityEnabled)) return
+    val rule = GuardMode.kept(friendPassEnabled, allowedScrolls)
+    prefs.blockedPackages = KnownApps.apps
         .filter { it.name in selectedAppNames }
         .flatMap { it.packages }
         .toSet()
-    prefs.blockedPackages = packages
-    prefs.friendPassEnabled = friendPass
-    prefs.dailyCapMinutes = dailyCap
-    if (password.length == ZenPrefs.PASSWORD_LENGTH) {
-        prefs.lockPassword = password
-    }
+    prefs.friendPassEnabled = rule.friendPassEnabled
+    prefs.allowedScrolls = rule.allowedScrolls
+    prefs.earnedScrollsEnabled = false
+    prefs.lockPassword = password
     prefs.onboardingComplete = true
     prefs.lockNow()
 }
@@ -199,7 +215,7 @@ private fun commit(
 @Composable
 private fun StepTitle(title: String, subtitle: String? = null) {
     val c = LocalPersonaColors.current
-    Text(title, style = MaterialTheme.typography.headlineSmall.copy(letterSpacing = 0.sp), color = c.textPrimary)
+    Text(title, style = MaterialTheme.typography.headlineSmall, color = c.textPrimary)
     if (subtitle != null) {
         Spacer(Modifier.height(ZenSpacing.sm))
         Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
@@ -208,122 +224,18 @@ private fun StepTitle(title: String, subtitle: String? = null) {
 }
 
 @Composable
-private fun StepPersona(selected: Persona, onSelect: (Persona) -> Unit) {
-    val c = LocalPersonaColors.current
-    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-        StepTitle(
-            "Choose your guardian",
-            "This sets the whole vibe — colors, tone, and how it talks you off the feed. Change it anytime."
-        )
-        Persona.entries.forEach { p ->
-            val isSel = p == selected
-            val source = remember { MutableInteractionSource() }
-            GlassCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = ZenSpacing.md)
-                    .clip(ZenRadius.card)
-                    .then(
-                        if (isSel) Modifier.border(2.dp, c.accent, ZenRadius.card) else Modifier
-                    )
-                    .clickable(interactionSource = source, indication = null) { onSelect(p) }
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(p.glyph, style = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Default, fontSize = 28.sp))
-                    Spacer(Modifier.width(ZenSpacing.lg))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(p.displayName, style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
-                        Text(p.tagline, style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
-                    }
-                    if (isSel) Icon(Icons.Default.CheckCircle, "Selected", tint = c.accent)
-                }
-            }
-        }
-        Spacer(Modifier.height(ZenSpacing.sm))
-        Text(
-            LineLibrary.welcome(selected),
-            style = MaterialTheme.typography.bodyMedium,
-            color = c.accent
-        )
-    }
-}
-
-@Composable
-private fun StepPermissions(
-    isAccessibilityEnabled: Boolean,
-    isUsageEnabled: Boolean,
-    onOpenAccessibility: () -> Unit,
-    onOpenUsage: () -> Unit
-) {
-    val c = LocalPersonaColors.current
-    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-        StepTitle(
-            "Grant access",
-            "Accessibility is required. Usage access is optional."
-        )
-        PermissionRow(
-            title = "Accessibility Service",
-            desc = stringResource(R.string.accessibility_service_description),
-            granted = isAccessibilityEnabled,
-            onClick = onOpenAccessibility
-        )
-        Spacer(Modifier.height(ZenSpacing.md))
-        PermissionRow(
-            title = "Usage Access",
-            desc = "Lets Zen show your screen-time stats. Optional, but the dashboard is nicer with it.",
-            granted = isUsageEnabled,
-            onClick = onOpenUsage
-        )
-        if (!isAccessibilityEnabled) {
-            Spacer(Modifier.height(ZenSpacing.lg))
-            Text(
-                "Accessibility is off. Zen can't keep this rule until it's on.",
-                style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
-                color = c.warn
-            )
-        }
-    }
-}
-
-@Composable
-private fun PermissionRow(title: String, desc: String, granted: Boolean, onClick: () -> Unit) {
-    val c = LocalPersonaColors.current
-    val source = remember { MutableInteractionSource() }
-    GlassCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(ZenRadius.card)
-            .then(if (granted) Modifier.border(1.dp, c.safe, ZenRadius.card) else Modifier)
-            .clickable(interactionSource = source, indication = null) { onClick() }
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
-                Spacer(Modifier.height(ZenSpacing.xs))
-                Text(desc, style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
-            }
-            Spacer(Modifier.width(ZenSpacing.md))
-            if (granted) {
-                Icon(Icons.Default.CheckCircle, "Granted", tint = c.safe)
-            } else {
-                Text("Grant", style = MaterialTheme.typography.labelLarge, color = c.accent)
-            }
-        }
-    }
-}
-
-@Composable
-private fun StepConfig(
-    selectedApps: MutableList<String>,
+private fun StepRule(
+    selectedApps: SnapshotStateList<String>,
     friendPass: Boolean,
     allowedScrolls: Int,
-    onFriendPassChange: (Boolean) -> Unit,
-    dailyCap: Float,
-    onDailyCapChange: (Float) -> Unit
+    onRuleChange: (Boolean, Int) -> Unit
 ) {
-    val c = LocalPersonaColors.current
-    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-        StepTitle("What should I guard?")
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        StepTitle("The rule")
         RuleStatement(
             friendPassEnabled = friendPass,
             allowedScrolls = allowedScrolls,
@@ -334,75 +246,109 @@ private fun StepConfig(
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(ZenSpacing.lg))
-        KnownApps.apps.forEach { app ->
-            val checked = app.name in selectedApps
-            val limit = if (checked) RuleCopy.appLimit(app.name, friendPass) else null
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = ZenSpacing.xs),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(app.name, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
-                    if (limit != null) {
-                        Spacer(Modifier.height(ZenSpacing.xs))
-                        Text(
-                            limit,
-                            style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
-                            color = c.textSecondary
-                        )
-                    }
-                }
-                Switch(
-                    checked = checked,
-                    onCheckedChange = { on -> if (on) selectedApps.add(app.name) else selectedApps.remove(app.name) },
-                    colors = SwitchDefaults.colors(checkedTrackColor = c.accent)
-                )
-            }
-        }
-        Spacer(Modifier.height(ZenSpacing.lg))
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "Friend Pass",
-                style = MaterialTheme.typography.titleMedium,
-                color = c.textPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            Switch(
-                checked = friendPass,
-                onCheckedChange = onFriendPassChange,
-                colors = SwitchDefaults.colors(checkedTrackColor = c.accent)
-            )
-        }
-        Spacer(Modifier.height(ZenSpacing.xl))
-        Text("Daily screen-time goal: ${dailyCap.toInt()} min", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
-        Slider(
-            value = dailyCap,
-            onValueChange = onDailyCapChange,
-            valueRange = 15f..240f,
-            steps = 14,
-            colors = SliderDefaults.colors(thumbColor = c.accent, activeTrackColor = c.accent)
+        RuleModes(
+            friendPassEnabled = friendPass,
+            allowedScrolls = allowedScrolls,
+            onChange = onRuleChange
         )
+        Spacer(Modifier.height(ZenSpacing.sm))
+        SectionHeader("Apps")
+        AppRuleRows(
+            isGuarded = { it in selectedApps },
+            friendPassEnabled = friendPass,
+            onToggle = { name, checked ->
+                if (checked) {
+                    if (name !in selectedApps) selectedApps.add(name)
+                } else {
+                    selectedApps.removeAll { it == name }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun StepAccessibility(
+    isAccessibilityEnabled: Boolean,
+    isUsageEnabled: Boolean,
+    onOpenAccessibility: () -> Unit,
+    onOpenUsage: () -> Unit
+) {
+    val c = LocalPersonaColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        StepTitle(
+            title = "Accessibility",
+            subtitle = "Required. Zen can't keep this rule while this is off."
+        )
+        ZenRow(
+            title = "Accessibility",
+            description = stringResource(R.string.accessibility_service_description),
+            highlighted = isAccessibilityEnabled,
+            onClick = onOpenAccessibility,
+            onClickLabel = "Grant accessibility",
+            trailing = {
+                if (isAccessibilityEnabled) {
+                    Text("On", style = MaterialTheme.typography.titleMedium, color = c.safe)
+                } else {
+                    Text("Grant", style = MaterialTheme.typography.labelLarge, color = c.accent)
+                }
+            }
+        )
+        TextButton(onClick = onOpenUsage, modifier = Modifier.padding(top = ZenSpacing.sm)) {
+            Text(
+                text = if (isUsageEnabled) "Usage access is on" else "Usage access is optional",
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.textSecondary
+            )
+        }
+        if (!isAccessibilityEnabled) {
+            Spacer(Modifier.height(ZenSpacing.lg))
+            Text(
+                text = "Accessibility is off. Zen can't keep this rule until it's on.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.warn
+            )
+        }
+    }
+}
+
+@Composable
+private fun StepVoice(selected: Persona, onSelect: (Persona) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        StepTitle(
+            title = "Voice",
+            subtitle = "How a block sounds. It reskins Zen. It does not change the rule."
+        )
+        PersonaCards(selected = selected, onSelect = onSelect)
     }
 }
 
 @Composable
 private fun StepLock(password: String, onPasswordChange: (String) -> Unit) {
     val c = LocalPersonaColors.current
-    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
         StepTitle(
-            "Lock in your commitment",
-            "Set a ${ZenPrefs.PASSWORD_LENGTH}-character password to protect your settings from your future weak-willed self. " +
-                "Forget it? You can still change settings — but only after a 2-minute cooldown. Skipping the password keeps the cooldown as your lock."
+            title = "Lock the rule",
+            subtitle = "A password is optional. Leave it blank and changing the rule takes a 2-minute wait."
         )
         OutlinedTextField(
             value = password,
-            onValueChange = { if (it.length <= ZenPrefs.PASSWORD_LENGTH) onPasswordChange(it) },
+            onValueChange = onPasswordChange,
             label = { Text("Password (optional)") },
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true,
-            supportingText = { Text("${password.length} / ${ZenPrefs.PASSWORD_LENGTH}") },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = c.accent,
                 focusedLabelColor = c.accent,
@@ -410,12 +356,5 @@ private fun StepLock(password: String, onPasswordChange: (String) -> Unit) {
             ),
             modifier = Modifier.fillMaxWidth()
         )
-        if (password.isNotEmpty() && password.length != ZenPrefs.PASSWORD_LENGTH) {
-            Text(
-                "Begin waits until this is blank or exactly ${ZenPrefs.PASSWORD_LENGTH} characters. A different length would be dropped.",
-                style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
-                color = c.warn
-            )
-        }
     }
 }

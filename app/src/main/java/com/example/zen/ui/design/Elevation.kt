@@ -11,7 +11,7 @@ object ZenElevation {
     /** Ambient drop-shadow radius for light-surface personas. */
     val ambient = 12.dp
 
-    /** Accent-glow radius behind cards / the hero ring for dark-surface personas. */
+    /** Accent-glow radius behind cards for dark-surface personas. */
     val glow = 24.dp
 
     /** Hairline border width used for the top-lit edge on glass surfaces. */
