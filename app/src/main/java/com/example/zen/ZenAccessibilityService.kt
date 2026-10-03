@@ -9,14 +9,12 @@ import com.example.zen.persona.LineLibrary
 
 /**
  * Core engine. Detects when the user is on a short-form feed in a guarded app and intercepts
- * doom-scrolling.
+ * an unarmed feed.
  *
- * Detection is behavioural (scroll count within a feed session) rather than fragile screen
- * fingerprinting:
- *  - **Direct entry** (you opened the feed yourself): block on entry, unless the user has configured
- *    a scroll allowance.
- *  - **Friend Pass** (you arrived from a DM within [FRIEND_PASS_WINDOW_MS]): the landed video is
- *    allowed; the moment you scroll to the next one, you're intercepted.
+ * The allow/block decision lives in [ShortFormSession]:
+ *  - **Friend session** — armed once from a person-surface, then kept across scrolls, transient
+ *    misses, and Zen's own Back. It is not recomputed from the clock.
+ *  - **Direct entry** — no armed pass. Block on landing when the scroll allowance is 0.
  */
 class ZenAccessibilityService : AccessibilityService() {
 
@@ -24,6 +22,7 @@ class ZenAccessibilityService : AccessibilityService() {
 
     private lateinit var prefs: ZenPrefs
     private var overlay: InterceptionOverlay? = null
+    private val session = ShortFormSession()
 
     private val messagingPackages = setOf(
         "com.whatsapp",
@@ -35,14 +34,8 @@ class ZenAccessibilityService : AccessibilityService() {
     )
     private val tiktokPackages = setOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill")
 
-    private var lastDirectMessageTime = 0L
     private var lastBlockTime = 0L
-
-    // Current short-form "session" state.
-    private var sessionPackage: String? = null
-    private var sessionScrolls = 0
-    private var sessionFriendPass = false
-
+    private var armLogged = false
     private var lastDumpTime = 0L
 
     override fun onServiceConnected() {
@@ -55,23 +48,29 @@ class ZenAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         val packageName = event.packageName?.toString() ?: return
+        val now = System.currentTimeMillis()
 
         if (packageName in messagingPackages) {
-            lastDirectMessageTime = System.currentTimeMillis()
+            session.noteExternalMessenger(now)
         }
 
         val guarded = prefs.blockedPackages
         if (packageName !in guarded) {
-            resetSession()
+            // Leaving the guarded app ends the live session. A messenger event is only the next
+            // entry's arm, and the shade / keyboard are not a leave.
+            if (isRealLeave(packageName, event.eventType, guarded)) {
+                session.onLeftGuardedApp()
+            }
             return
         }
 
-        if (System.currentTimeMillis() - lastBlockTime < BLOCK_COOLDOWN_MS) return
+        if (now - lastBlockTime < BLOCK_COOLDOWN_MS) return
 
         val root = rootInActiveWindow
-
-        when (event.eventType) {
-            AccessibilityEvent.TYPE_VIEW_SCROLLED -> handleScroll(packageName, root)
+        val settings = currentSettings()
+        val decision = when (event.eventType) {
+            AccessibilityEvent.TYPE_VIEW_SCROLLED ->
+                session.onScroll(isShortForm(packageName, root), packageName, now, settings)
 
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
@@ -80,51 +79,39 @@ class ZenAccessibilityService : AccessibilityService() {
                 maybeDumpTree(packageName, root)
 
                 if (root != null && isDirectMessageScreen(root, packageName)) {
-                    lastDirectMessageTime = System.currentTimeMillis()
+                    session.noteInAppPersonSurface(now)
                 }
-                if (isShortForm(packageName, root)) {
-                    enterShortForm(packageName)
-                } else {
-                    resetSession()
-                }
+                session.onViewer(isShortForm(packageName, root), packageName, now, settings)
             }
+
+            else -> return
         }
+
+        if (decision.armed && !armLogged) {
+            Log.d(TAG, "Friend session open in $packageName")
+            armLogged = true
+        }
+        if (!decision.armed) armLogged = false
+        if (decision.block) block(packageName)
     }
 
-    private fun handleScroll(packageName: String, root: AccessibilityNodeInfo?) {
-        if (!isShortForm(packageName, root)) {
-            resetSession()
-            return
-        }
-        enterShortForm(packageName)
-        sessionScrolls++
-        if (sessionScrolls > currentAllowance()) {
-            block(packageName)
-        }
+    /**
+     * Home (or any other non-guarded app) is in front, and this event is that window opening.
+     * Messenger packages arm the next entry instead. System UI and the keyboard are not an exit.
+     */
+    private fun isRealLeave(packageName: String, eventType: Int, guarded: Set<String>): Boolean {
+        if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return false
+        if (packageName in messagingPackages || packageName == SYSTEM_UI_PACKAGE) return false
+        if (packageName.contains("inputmethod")) return false
+        val foreground = rootInActiveWindow?.packageName?.toString() ?: return false
+        return foreground == packageName && foreground !in guarded
     }
 
-    /** Begin a feed session (idempotent for the same package). */
-    private fun enterShortForm(packageName: String) {
-        if (sessionPackage == packageName) return
-        sessionPackage = packageName
-        sessionScrolls = 0
-        sessionFriendPass = prefs.friendPassEnabled &&
-            (System.currentTimeMillis() - lastDirectMessageTime < FRIEND_PASS_WINDOW_MS)
-        Log.d(TAG, "Entered short-form feed in $packageName (friendPass=$sessionFriendPass, allowance=${currentAllowance()})")
-
-        // Direct entry with no scroll allowance: block immediately on landing in the feed.
-        if (!sessionFriendPass && currentAllowance() == 0) {
-            block(packageName)
-        }
-    }
-
-    /** Scrolls permitted before blocking. Friend Pass = block on first scroll past the landed video. */
-    private fun currentAllowance(): Int {
-        if (sessionFriendPass) return 0
-        val base = prefs.allowedScrolls
-        // Optional "earned / lenient" mode grants a little extra rope.
-        return if (prefs.earnedScrollsEnabled) base + 1 else base
-    }
+    private fun currentSettings() = ShortFormSession.Settings(
+        friendPassEnabled = prefs.friendPassEnabled,
+        allowedScrolls = prefs.allowedScrolls,
+        earnedScrollsEnabled = prefs.earnedScrollsEnabled
+    )
 
     private fun block(packageName: String) {
         lastBlockTime = System.currentTimeMillis()
@@ -134,13 +121,8 @@ class ZenAccessibilityService : AccessibilityService() {
         Log.d(TAG, "Blocked $packageName (relapse #$relapseTier): $line")
         overlay?.show(persona, line)
         performGlobalAction(GLOBAL_ACTION_BACK)
-        resetSession()
-    }
-
-    private fun resetSession() {
-        sessionPackage = null
-        sessionScrolls = 0
-        sessionFriendPass = false
+        // Back must not forget an armed pass. The next viewer entry restores it.
+        session.onBlocked()
     }
 
     private fun isShortForm(packageName: String, root: AccessibilityNodeInfo?): Boolean {
@@ -260,7 +242,7 @@ class ZenAccessibilityService : AccessibilityService() {
     companion object {
         private const val SCAN_TAG = "ZenScan"
         private const val BLOCK_COOLDOWN_MS = 1500L
-        private const val FRIEND_PASS_WINDOW_MS = 4000L
+        private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
         private const val MAX_DEPTH = 30
         private const val MAX_NODES = 2000
         private const val DUMP_THROTTLE_MS = 2000L
