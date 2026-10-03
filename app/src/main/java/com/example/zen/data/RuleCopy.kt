@@ -55,6 +55,20 @@ object RuleCopy {
         if (youtubeGuarded) appLimit("YouTube", friendPassEnabled)?.let { add(it) }
     }
 
+    /**
+     * The rule an in-app accessibility row may state for this selection.
+     * Includes the suggestion hole, and TikTok or YouTube, when those limits apply.
+     */
+    fun stated(
+        friendPassEnabled: Boolean,
+        allowedScrolls: Int,
+        tiktokGuarded: Boolean,
+        youtubeGuarded: Boolean
+    ): String = buildList {
+        add(sentence(friendPassEnabled, allowedScrolls))
+        addAll(limits(friendPassEnabled, tiktokGuarded, youtubeGuarded))
+    }.joinToString(" ")
+
     /** The line for one app row, or null when that app uses the main sentence. */
     fun appLimit(appName: String, friendPassEnabled: Boolean): String? = when (appName) {
         "TikTok" -> TIKTOK

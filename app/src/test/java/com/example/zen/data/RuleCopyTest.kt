@@ -85,6 +85,33 @@ class RuleCopyTest {
     }
 
     @Test
+    fun statedRuleFollowsTheMode() {
+        val friendsOpen = RuleCopy.stated(
+            friendPassEnabled = true,
+            allowedScrolls = 0,
+            tiktokGuarded = true,
+            youtubeGuarded = true
+        )
+        assertTrue(friendsOpen.startsWith(RuleCopy.sentence(true, 0)))
+        assertTrue(friendsOpen.contains("A suggestion in the same viewer"))
+        assertTrue(friendsOpen.contains(RuleCopy.TIKTOK))
+        assertTrue(friendsOpen.contains(RuleCopy.YOUTUBE))
+
+        val allStops = RuleCopy.stated(
+            friendPassEnabled = false,
+            allowedScrolls = 0,
+            tiktokGuarded = true,
+            youtubeGuarded = true
+        )
+        assertEquals(
+            "${RuleCopy.sentence(false, 0)} ${RuleCopy.TIKTOK}",
+            allStops
+        )
+        assertFalse(allStops.contains("Friends' reels stay open"))
+        assertFalse(allStops.contains(RuleCopy.YOUTUBE))
+    }
+
+    @Test
     fun neverSaysOneVideoThenTheNextScroll() {
         val lines = buildList {
             add(RuleCopy.sentence(true, 0))

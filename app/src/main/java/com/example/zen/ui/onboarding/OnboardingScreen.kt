@@ -33,12 +33,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.zen.R
 import com.example.zen.data.GuardMode
 import com.example.zen.data.KnownApps
+import com.example.zen.data.RuleCopy
 import com.example.zen.data.ZenPrefs
 import com.example.zen.persona.LocalPersonaColors
 import com.example.zen.persona.Persona
@@ -132,6 +131,10 @@ fun OnboardingScreen(
                         1 -> StepAccessibility(
                             isAccessibilityEnabled = isAccessibilityEnabled,
                             isUsageEnabled = isUsageEnabled,
+                            friendPass = friendPass,
+                            allowedScrolls = allowedScrolls,
+                            tiktokGuarded = "TikTok" in selectedApps,
+                            youtubeGuarded = "YouTube" in selectedApps,
                             onOpenAccessibility = {
                                 context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                             },
@@ -271,6 +274,10 @@ private fun StepRule(
 private fun StepAccessibility(
     isAccessibilityEnabled: Boolean,
     isUsageEnabled: Boolean,
+    friendPass: Boolean,
+    allowedScrolls: Int,
+    tiktokGuarded: Boolean,
+    youtubeGuarded: Boolean,
     onOpenAccessibility: () -> Unit,
     onOpenUsage: () -> Unit
 ) {
@@ -286,7 +293,12 @@ private fun StepAccessibility(
         )
         ZenRow(
             title = "Accessibility",
-            description = stringResource(R.string.accessibility_service_description),
+            description = RuleCopy.stated(
+                friendPassEnabled = friendPass,
+                allowedScrolls = allowedScrolls,
+                tiktokGuarded = tiktokGuarded,
+                youtubeGuarded = youtubeGuarded
+            ),
             highlighted = isAccessibilityEnabled,
             onClick = onOpenAccessibility,
             onClickLabel = "Grant accessibility",
