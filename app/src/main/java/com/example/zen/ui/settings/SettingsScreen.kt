@@ -20,12 +20,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.zen.data.KnownApps
+import com.example.zen.data.RuleCopy
 import com.example.zen.data.ZenPrefs
 import com.example.zen.persona.LocalPersonaColors
 import com.example.zen.persona.Persona
 import com.example.zen.ui.components.GlassCard
 import com.example.zen.ui.components.LocalHazeState
 import com.example.zen.ui.components.PrimaryButton
+import com.example.zen.ui.components.RuleStatement
 import com.example.zen.ui.components.SecondaryButton
 import com.example.zen.ui.components.SectionHeader
 import com.example.zen.ui.design.ZenRadius
@@ -104,9 +106,19 @@ private fun LockGate(prefs: ZenPrefs, tick: Int) {
         contentPadding = ZenSpacing.xl
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            RuleStatement(
+                friendPassEnabled = prefs.friendPassEnabled,
+                allowedScrolls = prefs.allowedScrolls,
+                tiktokGuarded = prefs.tiktokGuarded,
+                youtubeGuarded = prefs.youtubeGuarded,
+                includeLimits = true,
+                emphasize = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(ZenSpacing.xl))
             Icon(Icons.Default.Lock, null, tint = c.accent, modifier = Modifier.size(40.dp))
             Spacer(Modifier.height(ZenSpacing.md))
-            Text("Settings are locked", style = MaterialTheme.typography.titleSmall, color = c.textPrimary)
+            Text("This rule is locked", style = MaterialTheme.typography.titleSmall, color = c.textPrimary)
             Spacer(Modifier.height(ZenSpacing.sm))
             Text(
                 "You committed to this on purpose. Changing it should take a moment of intention.",
@@ -118,7 +130,11 @@ private fun LockGate(prefs: ZenPrefs, tick: Int) {
             if (cooldownPending) {
                 Text("Unlocking in ${formatMs(remaining)}", style = MaterialTheme.typography.headlineSmall.copy(letterSpacing = 0.sp), color = c.accent)
                 Spacer(Modifier.height(ZenSpacing.xs))
-                Text("Stay on this screen — it'll open automatically.", style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+                Text(
+                    "The wait keeps going if you leave. It unlocks when you come back to this screen.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textSecondary
+                )
                 Spacer(Modifier.height(ZenSpacing.md))
                 TextButton(onClick = { prefs.cancelCooldown() }) { Text("Cancel", color = c.textSecondary) }
             } else {
@@ -200,24 +216,35 @@ private fun UnlockedSettings(
     Spacer(Modifier.height(ZenSpacing.xl))
     SectionHeader("Guarded apps")
     KnownApps.apps.forEach { app ->
-        ToggleRow(app.name, null, app.name in selectedApps) { on ->
-            if (on) selectedApps.add(app.name) else selectedApps.remove(app.name)
+        val on = app.name in selectedApps
+        ToggleRow(
+            app.name,
+            if (on) RuleCopy.appLimit(app.name, friendPass) else null,
+            on
+        ) { checked ->
+            if (checked) selectedApps.add(app.name) else selectedApps.remove(app.name)
             writeApps()
         }
     }
 
     Spacer(Modifier.height(ZenSpacing.xl))
-    SectionHeader("Blocking")
-    ToggleRow(
-        "Friend Pass",
-        "Allow the one video a friend DM'd you; block the next scroll.",
-        friendPass
-    ) { friendPass = it; prefs.friendPassEnabled = it }
+    SectionHeader("The rule")
+    RuleStatement(
+        friendPassEnabled = friendPass,
+        allowedScrolls = allowedScrolls.toInt(),
+        tiktokGuarded = "TikTok" in selectedApps,
+        youtubeGuarded = "YouTube" in selectedApps,
+        includeLimits = false,
+        emphasize = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(ZenSpacing.md))
+    ToggleRow("Friend Pass", null, friendPass) { friendPass = it; prefs.friendPassEnabled = it }
     Spacer(Modifier.height(ZenSpacing.md))
     Text(
-        if (allowedScrolls.toInt() == 0) "Strictness: block the moment you open a feed"
-        else "Strictness: allow ${allowedScrolls.toInt()} scroll(s) before blocking",
-        style = MaterialTheme.typography.titleMedium, color = c.textPrimary
+        "Scrolls on a feed you open yourself",
+        style = MaterialTheme.typography.titleMedium,
+        color = c.textPrimary
     )
     Slider(
         value = allowedScrolls,
@@ -290,7 +317,13 @@ private fun ToggleRow(title: String, desc: String?, checked: Boolean, onChange: 
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
-            if (desc != null) Text(desc, style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+            if (desc != null) {
+                Text(
+                    desc,
+                    style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
+                    color = c.textSecondary
+                )
+            }
         }
         Switch(
             checked = checked,

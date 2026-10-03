@@ -13,6 +13,10 @@ interface ZenStatsSource {
     val dailyCapMinutes: Int
     val earnedScrollsEnabled: Boolean
     val earnedBalanceSeconds: Int
+    val friendPassEnabled: Boolean
+    val allowedScrolls: Int
+    val tiktokGuarded: Boolean
+    val youtubeGuarded: Boolean
     fun savesToday(): Int
     fun touchActiveDay()
 }
