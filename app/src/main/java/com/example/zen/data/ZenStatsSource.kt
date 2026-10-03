@@ -17,6 +17,7 @@ interface ZenStatsSource {
     val allowedScrolls: Int
     val tiktokGuarded: Boolean
     val youtubeGuarded: Boolean
+    val guardedAppNames: Set<String>
     fun savesToday(): Int
     fun touchActiveDay()
 }

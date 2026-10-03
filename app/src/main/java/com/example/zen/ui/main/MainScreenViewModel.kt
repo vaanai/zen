@@ -28,7 +28,8 @@ data class MainUiState(
     val friendPassEnabled: Boolean = true,
     val allowedScrolls: Int = 0,
     val tiktokGuarded: Boolean = true,
-    val youtubeGuarded: Boolean = true
+    val youtubeGuarded: Boolean = true,
+    val guardedAppNames: Set<String> = emptySet()
 )
 
 class MainScreenViewModel(
@@ -41,7 +42,8 @@ class MainScreenViewModel(
             friendPassEnabled = stats.friendPassEnabled,
             allowedScrolls = stats.allowedScrolls,
             tiktokGuarded = stats.tiktokGuarded,
-            youtubeGuarded = stats.youtubeGuarded
+            youtubeGuarded = stats.youtubeGuarded,
+            guardedAppNames = stats.guardedAppNames
         )
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
@@ -73,7 +75,8 @@ class MainScreenViewModel(
                 friendPassEnabled = stats.friendPassEnabled,
                 allowedScrolls = stats.allowedScrolls,
                 tiktokGuarded = stats.tiktokGuarded,
-                youtubeGuarded = stats.youtubeGuarded
+                youtubeGuarded = stats.youtubeGuarded,
+                guardedAppNames = stats.guardedAppNames
             )
         }
     }

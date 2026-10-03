@@ -1,5 +1,8 @@
 package com.example.zen
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,18 +15,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.zen.data.DefaultZenStatusProvider
 import com.example.zen.data.ZenPrefs
+import com.example.zen.persona.LocalPersonaColors
 import com.example.zen.persona.PersonaTheme
 import com.example.zen.ui.main.MainScreen
 import com.example.zen.ui.main.MainScreenViewModel
@@ -54,8 +61,14 @@ fun ZenApp() {
             delay(1500)
         }
     }
+    // Lenient mode is not a rule these screens state. Leave it off so the service
+    // does not add a scroll the sentence never mentions.
+    LaunchedEffect(Unit) {
+        if (prefs.earnedScrollsEnabled) prefs.earnedScrollsEnabled = false
+    }
 
     PersonaTheme(persona) {
+        PersonaSystemBars()
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             val backStack = rememberNavBackStack(if (prefs.onboardingComplete) Dashboard else Onboarding)
 
@@ -110,4 +123,27 @@ fun ZenApp() {
             }
         }
     }
+}
+
+/** Status and navigation icons follow the persona. Light paper needs dark icons. */
+@Composable
+private fun PersonaSystemBars() {
+    val view = LocalView.current
+    val light = LocalPersonaColors.current.isLight
+    if (view.isInEditMode) return
+    SideEffect {
+        val activity = view.context.findActivity() ?: return@SideEffect
+        val controller = WindowCompat.getInsetsController(activity.window, view)
+        controller.isAppearanceLightStatusBars = light
+        controller.isAppearanceLightNavigationBars = light
+    }
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
 }

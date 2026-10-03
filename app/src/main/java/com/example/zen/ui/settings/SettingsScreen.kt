@@ -1,32 +1,52 @@
 package com.example.zen.ui.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.zen.data.KnownApps
-import com.example.zen.data.RuleCopy
 import com.example.zen.data.ZenPrefs
 import com.example.zen.persona.LocalPersonaColors
 import com.example.zen.persona.Persona
+import com.example.zen.ui.components.AppRuleRows
 import com.example.zen.ui.components.GlassCard
 import com.example.zen.ui.components.LocalHazeState
+import com.example.zen.ui.components.PersonaCards
 import com.example.zen.ui.components.PrimaryButton
+import com.example.zen.ui.components.RuleModes
 import com.example.zen.ui.components.RuleStatement
 import com.example.zen.ui.components.SecondaryButton
 import com.example.zen.ui.components.SectionHeader
@@ -71,9 +91,13 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.textPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = c.textPrimary)
                     }
-                    Text("Settings", style = MaterialTheme.typography.headlineSmall.copy(letterSpacing = 0.sp), color = c.textPrimary)
+                    Text(
+                        text = "Settings",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = c.textPrimary
+                    )
                 }
 
                 Column(
@@ -82,7 +106,11 @@ fun SettingsScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = ZenSpacing.screenGutter)
                 ) {
-                    if (!unlocked) LockGate(prefs, tick) else UnlockedSettings(prefs, selectedPersona, onPersonaSelected)
+                    if (!unlocked) {
+                        LockGate(prefs, tick)
+                    } else {
+                        UnlockedSettings(prefs, selectedPersona, onPersonaSelected)
+                    }
                     Spacer(Modifier.height(ZenSpacing.xxl))
                 }
             }
@@ -116,56 +144,77 @@ private fun LockGate(prefs: ZenPrefs, tick: Int) {
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(ZenSpacing.xl))
-            Icon(Icons.Default.Lock, null, tint = c.accent, modifier = Modifier.size(40.dp))
+            Icon(Icons.Default.Lock, contentDescription = null, tint = c.accent, modifier = Modifier.size(40.dp))
             Spacer(Modifier.height(ZenSpacing.md))
             Text("This rule is locked", style = MaterialTheme.typography.titleSmall, color = c.textPrimary)
             Spacer(Modifier.height(ZenSpacing.sm))
             Text(
-                "You committed to this on purpose. Changing it should take a moment of intention.",
-                style = MaterialTheme.typography.bodyMedium, color = c.textSecondary,
+                text = "You committed to this on purpose. Changing it should take a moment of intention.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.textSecondary,
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(ZenSpacing.xl))
 
             if (cooldownPending) {
-                Text("Unlocking in ${formatMs(remaining)}", style = MaterialTheme.typography.headlineSmall.copy(letterSpacing = 0.sp), color = c.accent)
+                Text(
+                    text = "Unlocking in ${formatMs(remaining)}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = c.accent
+                )
                 Spacer(Modifier.height(ZenSpacing.xs))
                 Text(
-                    "The wait keeps going if you leave. It unlocks when you come back to this screen.",
+                    text = "The wait keeps going if you leave. It unlocks when you come back to this screen.",
                     style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary
                 )
                 Spacer(Modifier.height(ZenSpacing.md))
-                TextButton(onClick = { prefs.cancelCooldown() }) { Text("Cancel", color = c.textSecondary) }
-            } else {
-                if (prefs.hasPassword()) {
-                    OutlinedTextField(
-                        value = attempt,
-                        onValueChange = { attempt = it; error = false },
-                        label = { Text("Enter password") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        isError = error,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = c.accent, focusedLabelColor = c.accent, cursorColor = c.accent
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (error) Text("Wrong password.", style = MaterialTheme.typography.bodySmall, color = c.danger)
-                    Spacer(Modifier.height(ZenSpacing.md))
-                    PrimaryButton("Unlock", onClick = { if (!prefs.tryPassword(attempt)) error = true }, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(ZenSpacing.sm))
-                    TextButton(onClick = { prefs.beginCooldown() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Forgot password? Unlock after 2 minutes", color = c.textSecondary, style = MaterialTheme.typography.bodyMedium)
-                    }
-                } else {
-                    Text(
-                        "No password set — unlocking just takes a 2-minute wait.",
-                        style = MaterialTheme.typography.bodyMedium, color = c.textSecondary
-                    )
-                    Spacer(Modifier.height(ZenSpacing.md))
-                    PrimaryButton("Start 2-minute unlock", onClick = { prefs.beginCooldown() }, modifier = Modifier.fillMaxWidth())
+                TextButton(onClick = { prefs.cancelCooldown() }) {
+                    Text("Cancel", color = c.textSecondary)
                 }
+            } else if (prefs.hasPassword()) {
+                OutlinedTextField(
+                    value = attempt,
+                    onValueChange = {
+                        attempt = it
+                        error = false
+                    },
+                    label = { Text("Enter password") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    isError = error,
+                    colors = fieldColors(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (error) {
+                    Text("Wrong password.", style = MaterialTheme.typography.bodySmall, color = c.danger)
+                }
+                Spacer(Modifier.height(ZenSpacing.md))
+                PrimaryButton(
+                    text = "Unlock",
+                    onClick = { if (!prefs.tryPassword(attempt)) error = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(ZenSpacing.sm))
+                TextButton(onClick = { prefs.beginCooldown() }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Forgot password? Unlock after 2 minutes",
+                        color = c.textSecondary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            } else {
+                Text(
+                    text = "No password set — unlocking just takes a 2-minute wait.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = c.textSecondary
+                )
+                Spacer(Modifier.height(ZenSpacing.md))
+                PrimaryButton(
+                    text = "Start 2-minute unlock",
+                    onClick = { prefs.beginCooldown() },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -178,159 +227,124 @@ private fun UnlockedSettings(
     onPersonaSelected: (Persona) -> Unit
 ) {
     val c = LocalPersonaColors.current
-
     val selectedApps = remember {
         mutableStateListOf<String>().apply {
-            addAll(KnownApps.apps.filter { app -> app.packages.any { it in prefs.blockedPackages } }.map { it.name })
+            addAll(
+                KnownApps.apps
+                    .filter { app -> app.packages.any { it in prefs.blockedPackages } }
+                    .map { it.name }
+            )
         }
     }
     var friendPass by remember { mutableStateOf(prefs.friendPassEnabled) }
-    var allowedScrolls by remember { mutableStateOf(prefs.allowedScrolls.toFloat()) }
-    var dailyCap by remember { mutableStateOf(prefs.dailyCapMinutes.toFloat()) }
-    var earned by remember { mutableStateOf(prefs.earnedScrollsEnabled) }
+    var allowedScrolls by remember { mutableIntStateOf(prefs.allowedScrolls) }
     var newPassword by remember { mutableStateOf(prefs.lockPassword) }
     var showPassword by remember { mutableStateOf(false) }
 
     fun writeApps() {
-        prefs.blockedPackages = KnownApps.apps.filter { it.name in selectedApps }.flatMap { it.packages }.toSet()
+        prefs.blockedPackages = KnownApps.apps
+            .filter { it.name in selectedApps }
+            .flatMap { it.packages }
+            .toSet()
+    }
+
+    fun writeRule(pass: Boolean, scrolls: Int) {
+        friendPass = pass
+        allowedScrolls = scrolls
+        prefs.friendPassEnabled = pass
+        prefs.allowedScrolls = scrolls
+        prefs.earnedScrollsEnabled = false
     }
 
     Spacer(Modifier.height(ZenSpacing.sm))
-    SectionHeader("Persona")
-    Persona.entries.forEach { p ->
-        val isSel = p == selectedPersona
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = ZenSpacing.xs)
-                .clickable { prefs.persona = p; onPersonaSelected(p) },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(p.glyph, style = TextStyle(fontFamily = FontFamily.Default, fontSize = 20.sp))
-            Spacer(Modifier.width(ZenSpacing.md))
-            Text(p.displayName, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary, modifier = Modifier.weight(1f))
-            if (isSel) Icon(Icons.Default.CheckCircle, "Selected", tint = c.accent)
-        }
-    }
-
-    Spacer(Modifier.height(ZenSpacing.xl))
-    SectionHeader("Guarded apps")
-    KnownApps.apps.forEach { app ->
-        val on = app.name in selectedApps
-        ToggleRow(
-            app.name,
-            if (on) RuleCopy.appLimit(app.name, friendPass) else null,
-            on
-        ) { checked ->
-            if (checked) selectedApps.add(app.name) else selectedApps.remove(app.name)
-            writeApps()
-        }
-    }
-
-    Spacer(Modifier.height(ZenSpacing.xl))
     SectionHeader("The rule")
     RuleStatement(
         friendPassEnabled = friendPass,
-        allowedScrolls = allowedScrolls.toInt(),
+        allowedScrolls = allowedScrolls,
         tiktokGuarded = "TikTok" in selectedApps,
         youtubeGuarded = "YouTube" in selectedApps,
         includeLimits = false,
         emphasize = true,
         modifier = Modifier.fillMaxWidth()
     )
-    Spacer(Modifier.height(ZenSpacing.md))
-    ToggleRow("Friend Pass", null, friendPass) { friendPass = it; prefs.friendPassEnabled = it }
-    Spacer(Modifier.height(ZenSpacing.md))
-    Text(
-        "Scrolls on a feed you open yourself",
-        style = MaterialTheme.typography.titleMedium,
-        color = c.textPrimary
-    )
-    Slider(
-        value = allowedScrolls,
-        onValueChange = { allowedScrolls = it; prefs.allowedScrolls = it.toInt() },
-        valueRange = 0f..5f,
-        steps = 4,
-        colors = SliderDefaults.colors(thumbColor = c.accent, activeTrackColor = c.accent)
+    Spacer(Modifier.height(ZenSpacing.lg))
+    RuleModes(
+        friendPassEnabled = friendPass,
+        allowedScrolls = allowedScrolls,
+        onChange = ::writeRule
     )
 
     Spacer(Modifier.height(ZenSpacing.sm))
-    SectionHeader("Goals")
-    Text("Daily screen-time goal: ${dailyCap.toInt()} min", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
-    Slider(
-        value = dailyCap,
-        onValueChange = { dailyCap = it; prefs.dailyCapMinutes = it.toInt() },
-        valueRange = 15f..240f,
-        steps = 14,
-        colors = SliderDefaults.colors(thumbColor = c.accent, activeTrackColor = c.accent)
+    SectionHeader("Apps")
+    AppRuleRows(
+        isGuarded = { it in selectedApps },
+        friendPassEnabled = friendPass,
+        onToggle = { name, checked ->
+            if (checked) {
+                if (name !in selectedApps) selectedApps.add(name)
+            } else {
+                selectedApps.removeAll { it == name }
+            }
+            writeApps()
+        }
     )
-    ToggleRow(
-        "Lenient mode",
-        "Give yourself a little extra grace before a block kicks in, instead of an outright wall. Off = strict.",
-        earned
-    ) { earned = it; prefs.earnedScrollsEnabled = it }
+
+    Spacer(Modifier.height(ZenSpacing.sm))
+    SectionHeader("Voice")
+    PersonaCards(
+        selected = selectedPersona,
+        onSelect = { persona ->
+            prefs.persona = persona
+            onPersonaSelected(persona)
+        }
+    )
 
     Spacer(Modifier.height(ZenSpacing.xl))
-    SectionHeader("Commitment lock")
+    SectionHeader("Lock")
+    Text(
+        text = "A password is optional. Leave it blank and the 2-minute wait is the lock.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = c.textSecondary
+    )
+    Spacer(Modifier.height(ZenSpacing.md))
     OutlinedTextField(
         value = newPassword,
-        onValueChange = { if (it.length <= ZenPrefs.PASSWORD_LENGTH) newPassword = it },
-        label = { Text("Password (${ZenPrefs.PASSWORD_LENGTH} chars, blank = none)") },
-        visualTransformation = if (showPassword) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+        onValueChange = { newPassword = it },
+        label = { Text("Password (optional)") },
+        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
         singleLine = true,
-        supportingText = { Text("${newPassword.length} / ${ZenPrefs.PASSWORD_LENGTH}") },
         trailingIcon = {
             TextButton(onClick = { showPassword = !showPassword }) {
-                Text(if (showPassword) "Hide" else "Show", color = c.accent, style = MaterialTheme.typography.labelSmall)
+                Text(if (showPassword) "Hide" else "Show", color = c.accent)
             }
         },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = c.accent, focusedLabelColor = c.accent, cursorColor = c.accent
-        ),
+        colors = fieldColors(),
         modifier = Modifier.fillMaxWidth()
     )
     PrimaryButton(
         text = "Save password",
-        onClick = {
-            if (newPassword.isEmpty() || newPassword.length == ZenPrefs.PASSWORD_LENGTH) {
-                prefs.lockPassword = newPassword
-            }
-        },
-        enabled = newPassword.isEmpty() || newPassword.length == ZenPrefs.PASSWORD_LENGTH,
+        onClick = { prefs.lockPassword = newPassword },
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = ZenSpacing.sm)
     )
 
     Spacer(Modifier.height(ZenSpacing.xl))
-    SecondaryButton("Lock settings now", onClick = { prefs.lockNow() }, modifier = Modifier.fillMaxWidth())
+    SecondaryButton(
+        text = "Lock settings now",
+        onClick = { prefs.lockNow() },
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable
-private fun ToggleRow(title: String, desc: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun fieldColors(): androidx.compose.material3.TextFieldColors {
     val c = LocalPersonaColors.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = ZenSpacing.xs),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
-            if (desc != null) {
-                Text(
-                    desc,
-                    style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
-                    color = c.textSecondary
-                )
-            }
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(checkedTrackColor = c.accent)
-        )
-    }
+    return OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = c.accent,
+        focusedLabelColor = c.accent,
+        cursorColor = c.accent
+    )
 }
 
 private fun formatMs(ms: Long): String {

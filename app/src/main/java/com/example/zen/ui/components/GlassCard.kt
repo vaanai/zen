@@ -16,10 +16,14 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.zen.persona.LocalPersonaColors
+import com.example.zen.ui.design.ZenElevation
 import com.example.zen.ui.design.ZenRadius
 import com.example.zen.ui.design.ZenSpacing
 import dev.chrisbanes.haze.HazeState
@@ -46,14 +50,23 @@ fun GlassCard(
     shape: RoundedCornerShape = ZenRadius.card,
     contentPadding: Dp = ZenSpacing.cardPadding,
     pressed: Boolean = false,
+    highlighted: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val c = LocalPersonaColors.current
     val haze = LocalHazeState.current
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, label = "cardPress")
+    val lift = if (c.isLight) Color.Black else c.accent
 
     val glass = Modifier
         .scale(scale)
+        .shadow(
+            elevation = if (c.isLight) ZenElevation.ambient else ZenElevation.glow,
+            shape = shape,
+            clip = false,
+            ambientColor = lift.copy(alpha = if (c.isLight) 0.16f else 0.28f),
+            spotColor = lift.copy(alpha = if (c.isLight) 0.08f else 0.16f)
+        )
         .clip(shape)
         .then(
             if (haze != null) {
@@ -70,7 +83,11 @@ fun GlassCard(
                 Modifier.background(c.cardBackground)
             }
         )
-        .border(1.dp, topLitBorder(), shape)
+        .border(
+            width = if (highlighted) 2.dp else ZenElevation.hairline,
+            brush = if (highlighted) SolidColor(c.accent) else topLitBorder(),
+            shape = shape
+        )
 
     Box(modifier = modifier.then(glass)) {
         Box(Modifier.padding(contentPadding)) { content() }

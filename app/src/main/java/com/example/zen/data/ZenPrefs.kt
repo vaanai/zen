@@ -58,6 +58,12 @@ class ZenPrefs(context: Context) : ZenStatsSource {
     override val youtubeGuarded: Boolean
         get() = guards("YouTube")
 
+    override val guardedAppNames: Set<String>
+        get() = KnownApps.apps
+            .filter { app -> app.packages.any { it in blockedPackages } }
+            .map { it.name }
+            .toSet()
+
     override var dailyCapMinutes: Int
         get() = prefs.getInt(KEY_DAILY_CAP, 60)
         set(value) = prefs.edit().putInt(KEY_DAILY_CAP, value.coerceIn(5, 600)).apply()
@@ -203,7 +209,6 @@ class ZenPrefs(context: Context) : ZenStatsSource {
 
     companion object {
         const val FILE = "zen_prefs"
-        const val PASSWORD_LENGTH = 15
         private const val COOLDOWN_MS = 2 * 60 * 1000L
         private const val UNLOCK_WINDOW_MS = 5 * 60 * 1000L
 
