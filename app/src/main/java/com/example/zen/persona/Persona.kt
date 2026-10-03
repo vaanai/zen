@@ -1,9 +1,9 @@
 package com.example.zen.persona
 
 /**
- * The four personalities. The selected persona reskins the entire app (theme, typography, copy)
- * and drives the voice of the block-interception screen. See [PersonaPalette] for visuals and
- * [LineLibrary] for copy.
+ * The four personalities. The selected persona reskins the app (theme, typography, and the
+ * voice on home and onboarding). A block keeps that color and type on one short note.
+ * See [PersonaPalette] for visuals and [LineLibrary] for copy.
  */
 enum class Persona(
     val id: String,

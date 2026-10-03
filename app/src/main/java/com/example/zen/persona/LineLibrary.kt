@@ -10,7 +10,10 @@ import kotlin.random.Random
  */
 object LineLibrary {
 
-    /** Pick a block-interception line for [persona], escalating with today's [relapseCount]. */
+    /**
+     * Escalating roast for [persona], from today's [relapseCount].
+     * A block does not speak these. The overlay shows [BlockNote.LINE].
+     */
     fun blockLine(persona: Persona, relapseCount: Int): String {
         val tier = tierFor(relapseCount)
         val pool = blockLines(persona)[tier] ?: blockLines(persona).getValue(0)
