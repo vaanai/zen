@@ -75,14 +75,16 @@ class NodeWalkTest {
         val rootSpec = node("root", a, b)
         val root = rootSpec.obtain()
 
+        // `visited++ > maxNodes` reads maxNodes + 1 nodes. With 1, root and b are read;
+        // a is popped after that, recycled, and is not a match.
         val found = NodeWalk.anyMatch(root, maxNodes = 1, maxDepth = 30) {
             it.fake.markVisit()
-            it.fake.name == "a" || it.fake.name == "b"
+            it.fake.name == "a"
         }
 
         assertFalse(found)
         assertEquals(1, root.visits)
-        assertEquals(0, b.copies.single().visits)
+        assertEquals(1, b.copies.single().visits)
         assertEquals(0, a.copies.single().visits)
         assertOwned(rootSpec, root, rootRecycles = 0)
     }
@@ -356,7 +358,7 @@ class NodeWalkTest {
 
     private fun sourceFile(name: String): String {
         val relative = "src/main/java/com/example/zen/$name"
-        val start = File(System.getProperty("user.dir"))
+        val start = File(System.getProperty("user.dir") ?: error("user.dir is unset"))
         val matches = generateSequence(start) { it.parentFile }
             .take(6)
             .flatMap { dir ->
