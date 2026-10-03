@@ -3,8 +3,9 @@ name: Android Build
 on:
   push:
     branches: [ "main", "master" ]
+  # Any target branch, so stacked pull requests get the same checks.
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "**" ]
   workflow_dispatch:
 
 permissions:
@@ -29,6 +30,9 @@ jobs:
 
     - name: Build debug APK
       run: ./gradlew assembleDebug --console=plain
+
+    - name: Run debug unit tests
+      run: ./gradlew testDebugUnitTest --console=plain
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
