@@ -3,7 +3,6 @@ package com.example.zen
 import android.accessibilityservice.AccessibilityService
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 import com.example.zen.data.ZenPrefs
 import com.example.zen.persona.LineLibrary
 
@@ -66,25 +65,28 @@ class ZenAccessibilityService : AccessibilityService() {
 
         if (now - lastBlockTime < BLOCK_COOLDOWN_MS) return
 
-        val root = rootInActiveWindow
         val settings = currentSettings()
-        val decision = when (event.eventType) {
-            AccessibilityEvent.TYPE_VIEW_SCROLLED ->
-                session.onScroll(isShortForm(packageName, root), packageName, now, settings)
+        // The active window is ours to recycle, including when this event is neither a scroll nor a window.
+        val root = obtainActiveWindow()
+        val decision = useObtainedOrNull(root, FrameworkNode::recycle) { window ->
+            when (event.eventType) {
+                AccessibilityEvent.TYPE_VIEW_SCROLLED ->
+                    session.onScroll(isShortForm(packageName, window), packageName, now, settings)
 
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                // Diagnostic: dump what this app actually exposes so we can tune detection from a
-                // real logcat (`adb logcat -s ZenScan`). Throttled so it doesn't flood.
-                maybeDumpTree(packageName, root)
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                    // Diagnostic: dump what this app actually exposes so we can tune detection from a
+                    // real logcat (`adb logcat -s ZenScan`). Throttled so it doesn't flood.
+                    maybeDumpTree(packageName, window)
 
-                if (root != null && isDirectMessageScreen(root, packageName)) {
-                    session.noteInAppPersonSurface(now)
+                    if (window != null && isDirectMessageScreen(window, packageName)) {
+                        session.noteInAppPersonSurface(now)
+                    }
+                    session.onViewer(isShortForm(packageName, window), packageName, now, settings)
                 }
-                session.onViewer(isShortForm(packageName, root), packageName, now, settings)
-            }
 
-            else -> return
+                else -> return
+            }
         }
 
         if (decision.armed && !armLogged) {
@@ -103,8 +105,11 @@ class ZenAccessibilityService : AccessibilityService() {
         if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return false
         if (packageName in messagingPackages || packageName == SYSTEM_UI_PACKAGE) return false
         if (packageName.contains("inputmethod")) return false
-        val foreground = rootInActiveWindow?.packageName?.toString() ?: return false
-        return foreground == packageName && foreground !in guarded
+        val root = obtainActiveWindow() ?: return false
+        return useObtained(root, FrameworkNode::recycle) { window ->
+            val foreground = window.packageName?.toString() ?: return@useObtained false
+            foreground == packageName && foreground !in guarded
+        }
     }
 
     private fun currentSettings() = ShortFormSession.Settings(
@@ -125,11 +130,13 @@ class ZenAccessibilityService : AccessibilityService() {
         session.onBlocked()
     }
 
-    private fun isShortForm(packageName: String, root: AccessibilityNodeInfo?): Boolean {
+    private fun isShortForm(packageName: String, root: WalkNode?): Boolean {
         // TikTok is exclusively short-form.
         if (packageName in tiktokPackages) return true
         if (root == null) return false
-        return treeAnyMatch(root) { node -> matchesShortForm(packageName, node) }
+        return NodeWalk.anyMatch(root, MAX_NODES, MAX_DEPTH) { node ->
+            matchesShortForm(packageName, node)
+        }
     }
 
     /**
@@ -140,7 +147,7 @@ class ZenAccessibilityService : AccessibilityService() {
      * everywhere. The reel/short *viewer* exposes distinctive container ids instead. Text is only a
      * last-resort fallback for apps whose ids are fully obfuscated (e.g. Snapchat Spotlight).
      */
-    private fun matchesShortForm(pkg: String, node: AccessibilityNodeInfo): Boolean {
+    private fun matchesShortForm(pkg: String, node: WalkNode): Boolean {
         val id = node.viewIdResourceName?.lowercase()
         val text = node.text?.toString()?.lowercase()
         val desc = node.contentDescription?.toString()?.lowercase()
@@ -162,44 +169,25 @@ class ZenAccessibilityService : AccessibilityService() {
         (text != null && needles.any { text.contains(it) }) ||
             (desc != null && needles.any { desc.contains(it) })
 
-    /** Depth-bounded, node-count-bounded full-tree search that short-circuits on the first match. */
-    private fun treeAnyMatch(root: AccessibilityNodeInfo, predicate: (AccessibilityNodeInfo) -> Boolean): Boolean {
-        var visited = 0
-        val stack = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
-        stack.addLast(root to 0)
-        while (stack.isNotEmpty()) {
-            val (node, depth) = stack.removeLast()
-            if (visited++ > MAX_NODES) break
-            if (predicate(node)) return true
-            if (depth < MAX_DEPTH) {
-                for (i in 0 until node.childCount) {
-                    val child = node.getChild(i) ?: continue
-                    stack.addLast(child to depth + 1)
-                }
-            }
-        }
-        return false
-    }
-
     /**
      * Logs the resource-ids / text / content-descriptions the current screen exposes, throttled to
      * once per [DUMP_THROTTLE_MS]. This is how we learn each app's *real* ids when testing on-device:
      * `adb logcat -s ZenScan`. Only nodes carrying an id or visible text are logged, capped in count.
      */
-    private fun maybeDumpTree(packageName: String, root: AccessibilityNodeInfo?) {
+    private fun maybeDumpTree(packageName: String, root: WalkNode?) {
         if (root == null) return
         val now = System.currentTimeMillis()
         if (now - lastDumpTime < DUMP_THROTTLE_MS) return
         lastDumpTime = now
 
         Log.d(SCAN_TAG, "--- window in $packageName (shortForm=${isShortForm(packageName, root)}) ---")
-        var visited = 0
         var logged = 0
-        val stack = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
-        stack.addLast(root to 0)
-        while (stack.isNotEmpty() && logged < MAX_DUMP_LINES) {
-            val (node, depth) = stack.removeLast()
-            if (visited++ > MAX_NODES) break
+        NodeWalk.walk(
+            root,
+            maxNodes = MAX_NODES,
+            maxDepth = MAX_DEPTH,
+            stopBeforeVisit = { logged >= MAX_DUMP_LINES },
+        ) { node ->
             val id = node.viewIdResourceName
             val text = node.text?.toString()?.takeIf { it.isNotBlank() }
             val desc = node.contentDescription?.toString()?.takeIf { it.isNotBlank() }
@@ -207,17 +195,12 @@ class ZenAccessibilityService : AccessibilityService() {
                 Log.d(SCAN_TAG, "id=$id text=$text desc=$desc")
                 logged++
             }
-            if (depth < MAX_DEPTH) {
-                for (i in 0 until node.childCount) {
-                    val child = node.getChild(i) ?: continue
-                    stack.addLast(child to depth + 1)
-                }
-            }
+            false
         }
     }
 
-    private fun isDirectMessageScreen(node: AccessibilityNodeInfo?, packageName: String, depth: Int = 0): Boolean {
-        if (node == null || depth > 8) return false
+    private fun isDirectMessageScreen(node: WalkNode?, packageName: String): Boolean {
+        if (node == null) return false
         val keywords = when (packageName) {
             "com.instagram.android" ->
                 listOf("message...", "messages", "direct", "chats", "active now", "write a message")
@@ -225,14 +208,12 @@ class ZenAccessibilityService : AccessibilityService() {
                 listOf("chat", "send a chat", "new chat", "friends")
             else -> return false
         }
-        val text = node.text?.toString()?.lowercase()
-        val desc = node.contentDescription?.toString()?.lowercase()
-        if (text != null && keywords.any { text.contains(it) }) return true
-        if (desc != null && keywords.any { desc.contains(it) }) return true
-        for (i in 0 until node.childCount) {
-            if (isDirectMessageScreen(node.getChild(i), packageName, depth + 1)) return true
+        return NodeWalk.anyNode(node, depth = 0, maxDepth = 8) { candidate ->
+            val text = candidate.text?.toString()?.lowercase()
+            val desc = candidate.contentDescription?.toString()?.lowercase()
+            (text != null && keywords.any { text.contains(it) }) ||
+                (desc != null && keywords.any { desc.contains(it) })
         }
-        return false
     }
 
     override fun onInterrupt() {
