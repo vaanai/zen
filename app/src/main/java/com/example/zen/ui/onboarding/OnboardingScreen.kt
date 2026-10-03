@@ -19,11 +19,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zen.R
 import com.example.zen.data.KnownApps
+import com.example.zen.data.RuleCopy
 import com.example.zen.data.ZenPrefs
 import com.example.zen.persona.LineLibrary
 import com.example.zen.persona.LocalPersonaColors
@@ -31,6 +34,7 @@ import com.example.zen.persona.Persona
 import com.example.zen.ui.components.GlassCard
 import com.example.zen.ui.components.LocalHazeState
 import com.example.zen.ui.components.PrimaryButton
+import com.example.zen.ui.components.RuleStatement
 import com.example.zen.ui.components.SecondaryButton
 import com.example.zen.ui.design.ZenRadius
 import com.example.zen.ui.design.ZenSpacing
@@ -103,6 +107,7 @@ fun OnboardingScreen(
                         2 -> StepConfig(
                             selectedApps = selectedApps,
                             friendPass = friendPass,
+                            allowedScrolls = prefs.allowedScrolls,
                             onFriendPassChange = { friendPass = it },
                             dailyCap = dailyCap,
                             onDailyCapChange = { dailyCap = it }
@@ -119,15 +124,35 @@ fun OnboardingScreen(
                     if (step > 0) {
                         SecondaryButton("Back", onClick = { step-- }, modifier = Modifier.weight(1f))
                     }
+                    val passwordWouldBeDropped =
+                        password.isNotEmpty() && password.length != ZenPrefs.PASSWORD_LENGTH
+                    val permissionsBlocked = step == 1 && !isAccessibilityEnabled
                     PrimaryButton(
                         text = if (step < totalSteps - 1) "Continue" else "Begin",
                         onClick = {
+                            if (permissionsBlocked) return@PrimaryButton
                             if (step < totalSteps - 1) {
                                 step++
+                            } else if (!onboardingMayFinish(isAccessibilityEnabled, password)) {
+                                if (!isAccessibilityEnabled) step = 1
                             } else {
-                                commit(prefs, selectedApps, friendPass, dailyCap.toInt(), password)
+                                commit(
+                                    prefs,
+                                    selectedApps,
+                                    friendPass,
+                                    dailyCap.toInt(),
+                                    password,
+                                    isAccessibilityEnabled
+                                )
                                 onFinish()
                             }
+                        },
+                        enabled = when {
+                            permissionsBlocked -> false
+                            step < totalSteps - 1 -> true
+                            !isAccessibilityEnabled -> true
+                            passwordWouldBeDropped -> false
+                            else -> true
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -137,13 +162,26 @@ fun OnboardingScreen(
     }
 }
 
+/**
+ * Blank keeps the cooldown as the only lock. Exactly [ZenPrefs.PASSWORD_LENGTH] is stored.
+ * Any other length used to be discarded while onboarding still finished. Accessibility off
+ * used to finish the same way. Neither may mark onboarding complete.
+ */
+internal fun onboardingMayFinish(accessibilityEnabled: Boolean, password: String): Boolean {
+    if (!accessibilityEnabled) return false
+    if (password.isNotEmpty() && password.length != ZenPrefs.PASSWORD_LENGTH) return false
+    return true
+}
+
 private fun commit(
     prefs: ZenPrefs,
     selectedAppNames: List<String>,
     friendPass: Boolean,
     dailyCap: Int,
-    password: String
+    password: String,
+    accessibilityEnabled: Boolean
 ) {
+    if (!onboardingMayFinish(accessibilityEnabled, password)) return
     val packages = KnownApps.apps
         .filter { it.name in selectedAppNames }
         .flatMap { it.packages }
@@ -217,14 +255,15 @@ private fun StepPermissions(
     onOpenAccessibility: () -> Unit,
     onOpenUsage: () -> Unit
 ) {
+    val c = LocalPersonaColors.current
     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         StepTitle(
             "Grant access",
-            "Zen needs two permissions to work. Everything stays on your device — nothing is uploaded."
+            "Accessibility is required. Usage access is optional."
         )
         PermissionRow(
             title = "Accessibility Service",
-            desc = "Lets Zen see when you're scrolling a short-form feed so it can step in. Zen does not read your messages or collect content.",
+            desc = stringResource(R.string.accessibility_service_description),
             granted = isAccessibilityEnabled,
             onClick = onOpenAccessibility
         )
@@ -235,6 +274,14 @@ private fun StepPermissions(
             granted = isUsageEnabled,
             onClick = onOpenUsage
         )
+        if (!isAccessibilityEnabled) {
+            Spacer(Modifier.height(ZenSpacing.lg))
+            Text(
+                "Accessibility is off. Zen can't keep this rule until it's on.",
+                style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
+                color = c.warn
+            )
+        }
     }
 }
 
@@ -269,6 +316,7 @@ private fun PermissionRow(title: String, desc: String, granted: Boolean, onClick
 private fun StepConfig(
     selectedApps: MutableList<String>,
     friendPass: Boolean,
+    allowedScrolls: Int,
     onFriendPassChange: (Boolean) -> Unit,
     dailyCap: Float,
     onDailyCapChange: (Float) -> Unit
@@ -276,15 +324,36 @@ private fun StepConfig(
     val c = LocalPersonaColors.current
     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         StepTitle("What should I guard?")
+        RuleStatement(
+            friendPassEnabled = friendPass,
+            allowedScrolls = allowedScrolls,
+            tiktokGuarded = "TikTok" in selectedApps,
+            youtubeGuarded = "YouTube" in selectedApps,
+            includeLimits = false,
+            emphasize = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(ZenSpacing.lg))
         KnownApps.apps.forEach { app ->
             val checked = app.name in selectedApps
+            val limit = if (checked) RuleCopy.appLimit(app.name, friendPass) else null
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = ZenSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(app.name, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary, modifier = Modifier.weight(1f))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(app.name, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+                    if (limit != null) {
+                        Spacer(Modifier.height(ZenSpacing.xs))
+                        Text(
+                            limit,
+                            style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
+                            color = c.textSecondary
+                        )
+                    }
+                }
                 Switch(
                     checked = checked,
                     onCheckedChange = { on -> if (on) selectedApps.add(app.name) else selectedApps.remove(app.name) },
@@ -294,13 +363,12 @@ private fun StepConfig(
         }
         Spacer(Modifier.height(ZenSpacing.lg))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Friend Pass", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
-                Text(
-                    "Allow the one video a friend sent you in DMs — block the moment you scroll past it.",
-                    style = MaterialTheme.typography.bodySmall, color = c.textSecondary
-                )
-            }
+            Text(
+                "Friend Pass",
+                style = MaterialTheme.typography.titleMedium,
+                color = c.textPrimary,
+                modifier = Modifier.weight(1f)
+            )
             Switch(
                 checked = friendPass,
                 onCheckedChange = onFriendPassChange,
@@ -344,8 +412,9 @@ private fun StepLock(password: String, onPasswordChange: (String) -> Unit) {
         )
         if (password.isNotEmpty() && password.length != ZenPrefs.PASSWORD_LENGTH) {
             Text(
-                "Use exactly ${ZenPrefs.PASSWORD_LENGTH} characters, or leave blank to skip.",
-                style = MaterialTheme.typography.bodySmall, color = c.warn
+                "Begin waits until this is blank or exactly ${ZenPrefs.PASSWORD_LENGTH} characters. A different length would be dropped.",
+                style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
+                color = c.warn
             )
         }
     }
