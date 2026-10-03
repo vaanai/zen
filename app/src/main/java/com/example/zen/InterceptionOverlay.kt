@@ -66,6 +66,7 @@ class InterceptionOverlay(private val service: AccessibilityService) {
 
     private val windowManager = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val handler = Handler(Looper.getMainLooper())
+    private val dismissRunnable = Runnable { removeNow() }
     private var current: View? = null
     private var host: OverlayLifecycleOwner? = null
 
@@ -99,7 +100,7 @@ class InterceptionOverlay(private val service: AccessibilityService) {
                 lifecycleOwner.onResume()
                 current = composeView
                 host = lifecycleOwner
-                handler.postDelayed({ removeNow() }, DISMISS_AFTER_MS)
+                handler.postDelayed(dismissRunnable, DISMISS_AFTER_MS)
             } catch (e: Exception) {
                 lifecycleOwner.onDestroy()
                 current = null
@@ -109,6 +110,8 @@ class InterceptionOverlay(private val service: AccessibilityService) {
     }
 
     private fun removeNow() {
+        // One block's dismiss must not remove the next overlay.
+        handler.removeCallbacks(dismissRunnable)
         current?.let { v ->
             try {
                 windowManager.removeView(v)
