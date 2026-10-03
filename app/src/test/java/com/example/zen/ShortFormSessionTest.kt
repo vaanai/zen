@@ -109,6 +109,26 @@ class ShortFormSessionTest {
     }
 
     @Test
+    fun visibleBlockedViewer_beforeFriendPackage_restoresFriendAndDoesNotArmBlocked() {
+        armAt(1_000)
+        val feed = session.onViewer(true, YT, 100_000, strict)
+        assertTrue(feed.block)
+        assertFalse(feed.armed)
+
+        session.onBlocked()
+
+        val stillBlocked = session.onViewer(true, YT, 200_000, strict)
+        assertFalse(stillBlocked.armed)
+        assertFalse(session.isFriendSession)
+        if (stillBlocked.block) session.onBlocked()
+
+        val friend = session.onViewer(true, IG, 200_000, strict)
+        assertTrue(friend.armed)
+        assertFalse(friend.block)
+        assertTrue(session.isFriendSession)
+    }
+
+    @Test
     fun blockOnArmedSession_thenReenter_restoresPass() {
         armAt(1_000)
         session.onBlocked()

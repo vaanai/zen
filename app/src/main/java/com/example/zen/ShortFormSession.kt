@@ -8,11 +8,12 @@ package com.example.zen
  * clock. Scrolls inside it are not counted and do not block. A transient `isShortForm == false`
  * (null root, a missed frame, comments) does not end it and does not re-read the clock.
  *
- * [onBlocked] ends the feed that was just intercepted and keeps the pass so the next viewer entry
- * restores it — including when Back lands on a non-player first. [onLeftGuardedApp] ends the live
- * session (the user left the guarded app). A consumed arm is not reused after that, and an
- * external messenger event does not by itself start the session again. It can still arm the next
- * viewer entry, which is how a link shared in another app opens.
+ * [onBlocked] ends the feed that was just intercepted and remembers the armed package. Only a later
+ * entry of that package restores the pass. A different viewer that is still on screen does not
+ * take it. An in-app non-player frame does not either. [onLeftGuardedApp] ends the live session
+ * (the user left the guarded app) and drops that memory. A consumed arm is not reused after that,
+ * and an external messenger event does not by itself start the session again. It can still arm the
+ * next viewer entry, which is how a link shared in another app opens.
  *
  * An unarmed entry with allowance 0 still blocks on landing. The allowance is not how a friend
  * session stays open.
@@ -62,25 +63,27 @@ class ShortFormSession {
         pendingArmAt = now
     }
 
-    /** User left the guarded apps. The live session ends. A one-shot restore after [onBlocked] stays. */
+    /** User left the guarded apps. The live session and any pending restore both end. */
     fun onLeftGuardedApp() {
         friendPackage = null
         rememberedFriendPackage = null
+        restoreOnNextEnter = false
         unarmedPackage = null
         heldFromFriend = false
         scrolls = 0
     }
 
     /**
-     * Zen intercepted a feed and pressed Back. If a friend pass was live or held, the next viewer
-     * entry restores it instead of taking the direct-entry block.
+     * Zen intercepted a feed and pressed Back. The armed package is kept so only that package
+     * restores. The viewer that was just blocked must not become the friend session.
      */
     fun onBlocked() {
-        if (friendPackage != null || rememberedFriendPackage != null || heldFromFriend || restoreOnNextEnter) {
+        val armedPackage = friendPackage ?: rememberedFriendPackage
+        if (armedPackage != null || heldFromFriend || restoreOnNextEnter) {
             restoreOnNextEnter = true
+            if (armedPackage != null) rememberedFriendPackage = armedPackage
         }
         friendPackage = null
-        rememberedFriendPackage = null
         heldFromFriend = false
         unarmedPackage = null
         scrolls = 0
@@ -129,7 +132,7 @@ class ShortFormSession {
     }
 
     private fun enter(packageName: String, now: Long, settings: Settings): Decision {
-        if (settings.friendPassEnabled && restoreOnNextEnter) {
+        if (settings.friendPassEnabled && restoreOnNextEnter && packageName == rememberedFriendPackage) {
             return resumeFriend(packageName)
         }
         if (friendPackage == packageName) {
