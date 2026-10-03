@@ -5,7 +5,6 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.zen.data.ZenPrefs
-import com.example.zen.persona.LineLibrary
 
 /**
  * Core engine. Detects when the user is on a short-form feed in a guarded app and intercepts
@@ -116,10 +115,8 @@ class ZenAccessibilityService : AccessibilityService() {
     private fun block(packageName: String) {
         lastBlockTime = System.currentTimeMillis()
         val relapseTier = prefs.recordSave()
-        val persona = prefs.persona
-        val line = LineLibrary.blockLine(persona, relapseTier)
-        Log.d(TAG, "Blocked $packageName (relapse #$relapseTier): $line")
-        overlay?.show(persona, line)
+        Log.d(TAG, "Blocked $packageName (relapse #$relapseTier): ${BlockNote.LINE}")
+        overlay?.show(prefs.persona)
         performGlobalAction(GLOBAL_ACTION_BACK)
         // Back must not forget an armed pass. The next viewer entry restores it.
         session.onBlocked()
