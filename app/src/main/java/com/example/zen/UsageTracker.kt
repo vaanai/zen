@@ -60,19 +60,38 @@ class UsageTracker(private val context: Context) {
             }
         }
 
-        return targetApps.entries
-            .filter { accumulatedStats.containsKey(it.key) }
-            .map { (pkg, info) ->
-                val (appName, color) = info
-                val millis = accumulatedStats[pkg] ?: 0L
-                val minutes = millis / 1000 / 60
-                AppUsageItem(
-                    packageName = pkg,
-                    appName = appName,
-                    timeSpentMinutes = minutes,
-                    colorHex = color
-                )
-            }
-            .distinctBy { it.appName } // Combine duplicates like musically and trill
+        return mergeUsageByApp(
+            targetApps.entries
+                .filter { accumulatedStats.containsKey(it.key) }
+                .map { (pkg, info) ->
+                    val (appName, color) = info
+                    val millis = accumulatedStats[pkg] ?: 0L
+                    val minutes = millis / 1000 / 60
+                    AppUsageItem(
+                        packageName = pkg,
+                        appName = appName,
+                        timeSpentMinutes = minutes,
+                        colorHex = color
+                    )
+                }
+        )
     }
+}
+
+/**
+ * One row per app name. TikTok ships as two packages (`musically` and `trill`);
+ * their foreground minutes add. Keeping the first row and dropping the second
+ * would show a total the user never spent.
+ */
+internal fun mergeUsageByApp(items: List<AppUsageItem>): List<AppUsageItem> {
+    val merged = linkedMapOf<String, AppUsageItem>()
+    for (item in items) {
+        val prior = merged[item.appName]
+        merged[item.appName] = if (prior == null) {
+            item
+        } else {
+            prior.copy(timeSpentMinutes = prior.timeSpentMinutes + item.timeSpentMinutes)
+        }
+    }
+    return merged.values.toList()
 }

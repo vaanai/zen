@@ -10,44 +10,14 @@ import kotlin.random.Random
  */
 object LineLibrary {
 
-    /** Pick a block-interception line for [persona], escalating with today's [relapseCount]. */
+    /**
+     * Escalating roast for [persona], from today's [relapseCount].
+     * A block does not speak these. The overlay shows [BlockNote.LINE].
+     */
     fun blockLine(persona: Persona, relapseCount: Int): String {
         val tier = tierFor(relapseCount)
         val pool = blockLines(persona)[tier] ?: blockLines(persona).getValue(0)
         return pool[Random.nextInt(pool.size)]
-    }
-
-    fun welcome(persona: Persona): String = when (persona) {
-        Persona.GOBLIN -> "Alright, gremlin. I'll be watching that scroll finger."
-        Persona.COACH -> "Let's go! I'm in your corner now. We don't lose to a feed."
-        Persona.ZEN -> "I'm here now. Breathe. We'll keep things quiet together."
-        Persona.SAGE -> "So. You have enlisted a philosopher to mind your attention. Wise, for once."
-    }
-
-    fun shieldTitle(persona: Persona): String = when (persona) {
-        Persona.GOBLIN -> "Dopamine Goblin Shield"
-        Persona.COACH -> "Focus Training Mode"
-        Persona.ZEN -> "Stillness Guard"
-        Persona.SAGE -> "The Examined Feed"
-    }
-
-    fun shieldDescription(persona: Persona): String = when (persona) {
-        Persona.GOBLIN ->
-            "Try to scroll a short-form feed and I'll roast you and bounce you straight back out."
-        Persona.COACH ->
-            "Catch yourself reaching for the feed and I'll redirect that energy somewhere useful."
-        Persona.ZEN ->
-            "When the pull to scroll arises, I'll meet it with one calm breath and ease you away."
-        Persona.SAGE ->
-            "Should you attempt an idle scroll, I shall intervene with a small, deserved lecture."
-    }
-
-    /** Label for the dashboard's headline metric. */
-    fun savesLabel(persona: Persona): String = when (persona) {
-        Persona.GOBLIN -> "SCROLLS BLOCKED"
-        Persona.COACH -> "REPS WON"
-        Persona.ZEN -> "MOMENTS RECLAIMED"
-        Persona.SAGE -> "TEMPTATIONS RESISTED"
     }
 
     private fun tierFor(relapseCount: Int): Int = when {

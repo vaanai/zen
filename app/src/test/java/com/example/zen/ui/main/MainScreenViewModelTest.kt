@@ -29,6 +29,32 @@ class MainScreenViewModelTest {
     assertEquals(4, state.streakDays)
     assertEquals(12, state.savesTotal)
     assertEquals(3, state.savesToday)
+    assertEquals(true, state.friendPassEnabled)
+    assertEquals(0, state.allowedScrolls)
+    assertEquals(true, state.tiktokGuarded)
+    assertEquals(true, state.youtubeGuarded)
+    assertEquals(setOf("Instagram", "YouTube", "TikTok", "Snapchat"), state.guardedAppNames)
+  }
+
+  @Test
+  fun uiState_carriesTheRuleTheEngineKeeps() = runTest {
+    val viewModel = MainScreenViewModel(
+      FakeZenStatusProvider(accessibilityEnabled = false, usageAccessEnabled = false, stats = emptyList()),
+      FakeStatsSource(
+        friendPassEnabled = false,
+        allowedScrolls = 2,
+        tiktokGuarded = true,
+        youtubeGuarded = false,
+        guardedAppNames = setOf("TikTok")
+      )
+    )
+    viewModel.refreshState()
+    val state = viewModel.uiState.value
+    assertEquals(false, state.friendPassEnabled)
+    assertEquals(2, state.allowedScrolls)
+    assertEquals(true, state.tiktokGuarded)
+    assertEquals(false, state.youtubeGuarded)
+    assertEquals(setOf("TikTok"), state.guardedAppNames)
   }
 }
 
@@ -49,7 +75,12 @@ private class FakeStatsSource(
     private val savesToday: Int = 0,
     override val dailyCapMinutes: Int = 60,
     override val earnedScrollsEnabled: Boolean = false,
-    override val earnedBalanceSeconds: Int = 0
+    override val earnedBalanceSeconds: Int = 0,
+    override val friendPassEnabled: Boolean = true,
+    override val allowedScrolls: Int = 0,
+    override val tiktokGuarded: Boolean = true,
+    override val youtubeGuarded: Boolean = true,
+    override val guardedAppNames: Set<String> = setOf("Instagram", "YouTube", "TikTok", "Snapchat")
 ) : ZenStatsSource {
     override fun savesToday(): Int = savesToday
     override fun touchActiveDay() {}

@@ -43,14 +43,26 @@ class ZenPrefs(context: Context) : ZenStatsSource {
         get() = prefs.getStringSet(KEY_BLOCKED, DEFAULT_BLOCKED) ?: DEFAULT_BLOCKED
         set(value) = prefs.edit().putStringSet(KEY_BLOCKED, value).apply()
 
-    var friendPassEnabled: Boolean
+    override var friendPassEnabled: Boolean
         get() = prefs.getBoolean(KEY_FRIEND_PASS, true)
         set(value) = prefs.edit().putBoolean(KEY_FRIEND_PASS, value).apply()
 
     /** Scrolls allowed on direct (non-friend-pass) entry before blocking. 0 = block on entry. */
-    var allowedScrolls: Int
+    override var allowedScrolls: Int
         get() = prefs.getInt(KEY_ALLOWED_SCROLLS, 0)
         set(value) = prefs.edit().putInt(KEY_ALLOWED_SCROLLS, value.coerceIn(0, 10)).apply()
+
+    override val tiktokGuarded: Boolean
+        get() = guards("TikTok")
+
+    override val youtubeGuarded: Boolean
+        get() = guards("YouTube")
+
+    override val guardedAppNames: Set<String>
+        get() = KnownApps.apps
+            .filter { app -> app.packages.any { it in blockedPackages } }
+            .map { it.name }
+            .toSet()
 
     override var dailyCapMinutes: Int
         get() = prefs.getInt(KEY_DAILY_CAP, 60)
@@ -170,6 +182,11 @@ class ZenPrefs(context: Context) : ZenStatsSource {
         prefs.edit().putString(KEY_LAST_ACTIVE, today).apply()
     }
 
+    private fun guards(appName: String): Boolean {
+        val packages = KnownApps.apps.firstOrNull { it.name == appName }?.packages ?: return false
+        return blockedPackages.any { it in packages }
+    }
+
     private fun rolloverDayIfNeeded() {
         val today = dayKey(0)
         val savesDay = prefs.getString(KEY_SAVES_DAY, "") ?: ""
@@ -192,7 +209,6 @@ class ZenPrefs(context: Context) : ZenStatsSource {
 
     companion object {
         const val FILE = "zen_prefs"
-        const val PASSWORD_LENGTH = 15
         private const val COOLDOWN_MS = 2 * 60 * 1000L
         private const val UNLOCK_WINDOW_MS = 5 * 60 * 1000L
 
@@ -200,6 +216,15 @@ class ZenPrefs(context: Context) : ZenStatsSource {
         val DEFAULT_BLOCKED: Set<String> = KnownApps.allPackages
 
         private const val KEY_PERSONA = "persona"
+
+        /** Stored persona, read once. Does not register a preference listener. */
+        fun peekPersona(context: Context): Persona {
+            val stored = context.applicationContext
+                .getSharedPreferences(FILE, Context.MODE_PRIVATE)
+                .getString(KEY_PERSONA, null)
+            return Persona.fromId(stored)
+        }
+
         private const val KEY_ONBOARDED = "onboarding_complete"
         private const val KEY_BLOCKED = "blocked_packages"
         private const val KEY_FRIEND_PASS = "friend_pass_enabled"

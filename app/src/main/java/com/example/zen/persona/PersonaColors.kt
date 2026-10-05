@@ -19,6 +19,8 @@ data class PersonaColors(
     val warn: Color,
     val textPrimary: Color,
     val textSecondary: Color,
+    /** Label drawn on [accent]. Dark accents use a light ink; bright accents use a dark one. */
+    val onAccent: Color,
     val cardBackground: Color,
     val cardBorder: Color,
     val fontFamily: FontFamily,
@@ -44,9 +46,10 @@ object PersonaPalette {
         safe = Color(0xFF10B981),
         warn = Color(0xFFF59E0B),
         textPrimary = Color(0xFFF9FAFB),
-        textSecondary = Color(0xFF9CA3AF),
-        cardBackground = Color(0x15FFFFFF),
-        cardBorder = Color(0x1CFFFFFF),
+        textSecondary = Color(0xFFC5CDD6),
+        onAccent = Color(0xFF07050E),
+        cardBackground = Color(0xF2161428),
+        cardBorder = Color(0x33FFFFFF),
         fontFamily = InterFamily,
         isLight = false
     )
@@ -60,9 +63,10 @@ object PersonaPalette {
         safe = Color(0xFFB6FF3C),
         warn = Color(0xFFFFC53D),
         textPrimary = Color(0xFFF7FFF0),
-        textSecondary = Color(0xFFA9BE9C),
-        cardBackground = Color(0x14FFFFFF),
-        cardBorder = Color(0x22B6FF3C),
+        textSecondary = Color(0xFFC5D6B8),
+        onAccent = Color(0xFF0A0F0A),
+        cardBackground = Color(0xF2142212),
+        cardBorder = Color(0x33B6FF3C),
         fontFamily = InterFamily,
         isLight = false
     )
@@ -70,15 +74,16 @@ object PersonaPalette {
     // Zen — calm, rich, light beige.
     private val Zen = PersonaColors(
         gradient = listOf(Color(0xFFF4EEE2), Color(0xFFEBE1CF), Color(0xFFE1D5BE)),
-        accent = Color(0xFF7C8C6B),          // sage green
-        accentSecondary = Color(0xFFB08968), // warm clay
-        danger = Color(0xFFB5705B),
-        safe = Color(0xFF7C8C6B),
-        warn = Color(0xFFC19A5B),
-        textPrimary = Color(0xFF3A352C),
-        textSecondary = Color(0xFF8A8273),
-        cardBackground = Color(0x0F3A352C),
-        cardBorder = Color(0x1A3A352C),
+        accent = Color(0xFF3E4A34),          // deep olive, readable on paper
+        accentSecondary = Color(0xFF8C5E3C), // warm clay
+        danger = Color(0xFF6E3A2C),
+        safe = Color(0xFF3E4A34),
+        warn = Color(0xFF6B4E16),
+        textPrimary = Color(0xFF2C281F),
+        textSecondary = Color(0xFF4A453C),
+        onAccent = Color(0xFFF7F3EA),
+        cardBackground = Color(0xFFFFF9F1),
+        cardBorder = Color(0x263A352C),
         fontFamily = InterFamily,
         isLight = true
     )
@@ -88,13 +93,14 @@ object PersonaPalette {
         gradient = listOf(Color(0xFFEEE5D4), Color(0xFFE4D8C1), Color(0xFFD9CAAE)),
         accent = Color(0xFF6B4F3A),          // ink brown
         accentSecondary = Color(0xFF8C6A43), // aged bronze
-        danger = Color(0xFF8A4B3A),
-        safe = Color(0xFF5E6B47),
-        warn = Color(0xFFA9803F),
+        danger = Color(0xFF6E3A2C),
+        safe = Color(0xFF3E4A32),
+        warn = Color(0xFF6B4E16),
         textPrimary = Color(0xFF2E2519),
-        textSecondary = Color(0xFF7A6A52),
-        cardBackground = Color(0x122E2519),
-        cardBorder = Color(0x222E2519),
+        textSecondary = Color(0xFF4A4032),
+        onAccent = Color(0xFFF7F1E4),
+        cardBackground = Color(0xFFFBF6EA),
+        cardBorder = Color(0x2E2E2519),
         fontFamily = FrauncesFamily,
         isLight = true
     )

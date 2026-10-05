@@ -24,7 +24,12 @@ data class MainUiState(
     val savesTotal: Int = 0,
     val dailyCapMinutes: Int = 60,
     val earnedScrollsEnabled: Boolean = false,
-    val earnedBalanceSeconds: Int = 0
+    val earnedBalanceSeconds: Int = 0,
+    val friendPassEnabled: Boolean = true,
+    val allowedScrolls: Int = 0,
+    val tiktokGuarded: Boolean = true,
+    val youtubeGuarded: Boolean = true,
+    val guardedAppNames: Set<String> = emptySet()
 )
 
 class MainScreenViewModel(
@@ -32,7 +37,15 @@ class MainScreenViewModel(
     private val stats: ZenStatsSource
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(MainUiState())
+    private val _uiState = MutableStateFlow(
+        MainUiState(
+            friendPassEnabled = stats.friendPassEnabled,
+            allowedScrolls = stats.allowedScrolls,
+            tiktokGuarded = stats.tiktokGuarded,
+            youtubeGuarded = stats.youtubeGuarded,
+            guardedAppNames = stats.guardedAppNames
+        )
+    )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
@@ -58,7 +71,12 @@ class MainScreenViewModel(
                 savesTotal = stats.savesTotal,
                 dailyCapMinutes = stats.dailyCapMinutes,
                 earnedScrollsEnabled = stats.earnedScrollsEnabled,
-                earnedBalanceSeconds = stats.earnedBalanceSeconds
+                earnedBalanceSeconds = stats.earnedBalanceSeconds,
+                friendPassEnabled = stats.friendPassEnabled,
+                allowedScrolls = stats.allowedScrolls,
+                tiktokGuarded = stats.tiktokGuarded,
+                youtubeGuarded = stats.youtubeGuarded,
+                guardedAppNames = stats.guardedAppNames
             )
         }
     }

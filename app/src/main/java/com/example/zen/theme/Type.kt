@@ -12,15 +12,13 @@ import androidx.compose.ui.unit.sp
  * scale. Sizes / weights / tracking are defined once here instead of inline per composable.
  *
  * Role → usage mapping used across the UI:
- *  - displayLarge  → the hero number (saves today)
- *  - headlineSmall → persona name header
- *  - titleMedium   → card titles
- *  - titleSmall    → stat-chip values
- *  - bodyMedium    → card descriptions / help copy
- *  - bodySmall     → secondary hints
+ *  - headlineSmall → screen titles and the Zen wordmark (no tracking)
+ *  - titleMedium   → row titles
+ *  - bodyMedium    → descriptions
+ *  - bodySmall     → captions
  *  - labelLarge    → buttons
  *  - labelMedium   → section labels (all-caps, tracked)
- *  - labelSmall    → status badges / chip captions (all-caps, tracked)
+ *  - labelSmall    → status captions (all-caps, tracked)
  */
 fun personaTypography(fontFamily: FontFamily): Typography = Typography(
     displayLarge = TextStyle(
@@ -33,44 +31,44 @@ fun personaTypography(fontFamily: FontFamily): Typography = Typography(
     headlineSmall = TextStyle(
         fontFamily = fontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 26.sp,
-        lineHeight = 30.sp,
-        letterSpacing = 3.sp
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+        letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
         fontFamily = fontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 15.sp,
-        lineHeight = 20.sp,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 17.sp,
+        lineHeight = 22.sp,
         letterSpacing = 0.sp
     ),
     titleSmall = TextStyle(
         fontFamily = fontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 18.sp,
-        lineHeight = 22.sp,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
         letterSpacing = 0.sp
     ),
     bodyLarge = TextStyle(
         fontFamily = fontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
+        fontSize = 17.sp,
         lineHeight = 24.sp,
-        letterSpacing = 0.15.sp
+        letterSpacing = 0.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = fontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
-        letterSpacing = 0.1.sp
+        fontSize = 15.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.sp
     ),
     bodySmall = TextStyle(
         fontFamily = fontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.1.sp
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.sp
     ),
     labelLarge = TextStyle(
         fontFamily = fontFamily,
@@ -84,7 +82,7 @@ fun personaTypography(fontFamily: FontFamily): Typography = Typography(
         fontWeight = FontWeight.Bold,
         fontSize = 12.sp,
         lineHeight = 16.sp,
-        letterSpacing = 2.sp
+        letterSpacing = 0.6.sp
     ),
     labelSmall = TextStyle(
         fontFamily = fontFamily,

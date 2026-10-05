@@ -1,5 +1,12 @@
 package com.example.zen
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.graphics.Color
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -18,12 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.zen.data.DefaultZenStatusProvider
 import com.example.zen.data.ZenPrefs
+import com.example.zen.persona.LocalPersonaColors
 import com.example.zen.persona.PersonaTheme
 import com.example.zen.ui.main.MainScreen
 import com.example.zen.ui.main.MainScreenViewModel
@@ -54,8 +63,14 @@ fun ZenApp() {
             delay(1500)
         }
     }
+    // Lenient mode is not a rule these screens state. Leave it off so the service
+    // does not add a scroll the sentence never mentions.
+    LaunchedEffect(Unit) {
+        if (prefs.earnedScrollsEnabled) prefs.earnedScrollsEnabled = false
+    }
 
     PersonaTheme(persona) {
+        PersonaSystemBars()
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             val backStack = rememberNavBackStack(if (prefs.onboardingComplete) Dashboard else Onboarding)
 
@@ -110,4 +125,39 @@ fun ZenApp() {
             }
         }
     }
+}
+
+/**
+ * Status and navigation icons follow the persona.
+ * Light paper (Zen, Sage) gets dark icons. Dark personas get light icons.
+ * The app theme is light, so [androidx.activity.enableEdgeToEdge] with no style would
+ * leave dark icons on Goblin and Coach.
+ */
+@Composable
+private fun PersonaSystemBars() {
+    val view = LocalView.current
+    val light = LocalPersonaColors.current.isLight
+    if (view.isInEditMode) return
+    LaunchedEffect(light) {
+        val activity = view.context.findActivity() as? ComponentActivity ?: return@LaunchedEffect
+        activity.applyPersonaSystemBars(light)
+    }
+}
+
+internal fun ComponentActivity.applyPersonaSystemBars(isLight: Boolean) {
+    val style = if (isLight) {
+        SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+    } else {
+        SystemBarStyle.dark(Color.TRANSPARENT)
+    }
+    enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
 }

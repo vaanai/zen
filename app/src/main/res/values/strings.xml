@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Zen</string>
-    <string name="accessibility_service_description">Zen uses the Accessibility Service only to detect when you are scrolling short-form feeds (such as Reels, Shorts, TikTok, and Spotlight) so it can gently block them and help you stay focused. Zen does not read your messages, collect personal content, or send any data off your device.</string>
+    <string name="accessibility_service_description">On this device, Zen reads screen text to tell a chat from a player. It does not send that text anywhere.</string>
 </resources>
