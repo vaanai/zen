@@ -2,6 +2,12 @@ package com.example.zen.ui.main
 
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -167,10 +173,18 @@ private fun RuleHero(
     }
 }
 
+/** The only motion on this screen, and only while the guard is off. */
 @Composable
 private fun GuardOffCard() {
     val context = LocalContext.current
     val c = LocalPersonaColors.current
+    val pulse = rememberInfiniteTransition(label = "guardOff")
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "guardOffAlpha"
+    )
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     GlassCard(
@@ -202,7 +216,7 @@ private fun GuardOffCard() {
             Icon(
                 Icons.Default.Warning,
                 contentDescription = "Off",
-                tint = c.warn,
+                tint = c.warn.copy(alpha = pulseAlpha),
                 modifier = Modifier.size(24.dp)
             )
         }

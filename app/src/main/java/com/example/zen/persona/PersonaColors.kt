@@ -82,7 +82,7 @@ object PersonaPalette {
         textPrimary = Color(0xFF2C281F),
         textSecondary = Color(0xFF4A453C),
         onAccent = Color(0xFFF7F3EA),
-        cardBackground = Color(0xF2FFF9F1),
+        cardBackground = Color(0xFFFFF9F1),
         cardBorder = Color(0x263A352C),
         fontFamily = InterFamily,
         isLight = true
@@ -99,7 +99,7 @@ object PersonaPalette {
         textPrimary = Color(0xFF2E2519),
         textSecondary = Color(0xFF4A4032),
         onAccent = Color(0xFFF7F1E4),
-        cardBackground = Color(0xF2FBF6EA),
+        cardBackground = Color(0xFFFBF6EA),
         cardBorder = Color(0x2E2E2519),
         fontFamily = FrauncesFamily,
         isLight = true

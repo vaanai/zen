@@ -32,17 +32,15 @@ import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 
 /**
- * The [HazeState] that backing surfaces frost against. A screen sets this at its root (behind the
- * gradient); [GlassCard] reads it to blur the content beneath. Null → no blur source available, so
- * cards fall back to a plain translucent fill.
+ * Blur source for dark-persona cards. A screen sets this on the gradient behind the content.
+ * Light personas paint an opaque fill instead of frosting that gradient. Null uses the fill.
  */
 val LocalHazeState = staticCompositionLocalOf<HazeState?> { null }
 
 /**
- * The single card primitive for the app: a frosted-glass surface over the persona gradient with a
- * top-lit hairline border. Replaces the ad-hoc `Card + border` pattern. On devices without blur
- * support (API < 31) Haze draws the persona's translucent `cardBackground` scrim instead — matching
- * the app's previous look.
+ * The single card primitive. Light personas paint an opaque paper fill lifted by
+ * [ZenElevation.ambient] — a frost of the parchment is not a surface. Dark personas frost the
+ * gradient. With no blur source, every persona uses the same fill.
  */
 @Composable
 fun GlassCard(
@@ -56,6 +54,7 @@ fun GlassCard(
     val c = LocalPersonaColors.current
     val haze = LocalHazeState.current
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, label = "cardPress")
+    val surface = if (c.isLight) c.cardBackground.copy(alpha = 1f) else c.cardBackground
 
     val glass = Modifier
         .scale(scale)
@@ -63,23 +62,23 @@ fun GlassCard(
             elevation = ZenElevation.ambient,
             shape = shape,
             clip = false,
-            ambientColor = Color.Black.copy(alpha = if (c.isLight) 0.12f else 0.36f),
-            spotColor = Color.Black.copy(alpha = if (c.isLight) 0.08f else 0.28f)
+            ambientColor = if (c.isLight) Color.Black else Color.Black.copy(alpha = 0.36f),
+            spotColor = if (c.isLight) Color.Black else Color.Black.copy(alpha = 0.28f)
         )
         .clip(shape)
         .then(
-            if (haze != null) {
+            if (!c.isLight && haze != null) {
                 Modifier.hazeEffect(
                     state = haze,
                     style = HazeStyle(
-                        tints = listOf(HazeTint(c.cardBackground)),
+                        tints = listOf(HazeTint(surface)),
                         blurRadius = 12.dp,
                         noiseFactor = 0f,
-                        fallbackTint = HazeTint(c.cardBackground)
+                        fallbackTint = HazeTint(surface)
                     )
                 )
             } else {
-                Modifier.background(c.cardBackground)
+                Modifier.background(surface)
             }
         )
         .border(

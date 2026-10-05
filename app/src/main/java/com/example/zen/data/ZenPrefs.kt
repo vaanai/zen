@@ -216,6 +216,15 @@ class ZenPrefs(context: Context) : ZenStatsSource {
         val DEFAULT_BLOCKED: Set<String> = KnownApps.allPackages
 
         private const val KEY_PERSONA = "persona"
+
+        /** Stored persona, read once. Does not register a preference listener. */
+        fun peekPersona(context: Context): Persona {
+            val stored = context.applicationContext
+                .getSharedPreferences(FILE, Context.MODE_PRIVATE)
+                .getString(KEY_PERSONA, null)
+            return Persona.fromId(stored)
+        }
+
         private const val KEY_ONBOARDED = "onboarding_complete"
         private const val KEY_BLOCKED = "blocked_packages"
         private const val KEY_FRIEND_PASS = "friend_pass_enabled"
