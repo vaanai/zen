@@ -226,6 +226,50 @@ class InstagramSurfaceTest {
     }
 
     @Test
+    fun youtubeChromeMissDuringOpenPlayerDoesNotPressBackAgain() {
+        val session = ShortFormSession()
+        val player = ScreenClass.read(
+            YT,
+            node(id = "com.google.android.youtube:id/reel_watch_fragment_root", w = 1080, h = 1920),
+        )
+        assertTrue(player.shortForm)
+        assertTrue(session.onViewer(player.shortForm, YT, 0, strict, player.clearsLatch).block)
+        session.onBlocked()
+
+        val misses = listOf(
+            node(id = "com.google.android.youtube:id/reel_recycler", w = 1080, h = 1920),
+            node(id = "com.google.android.youtube:id/shorts_shelf", w = 1080, h = 400),
+            node(id = "com.google.android.youtube:id/shorts_container", w = 1080, h = 1920),
+            node(id = "com.google.android.youtube:id/watch_while_layout", w = 1080, h = 1920),
+            node(
+                kids = listOf(
+                    node(id = "com.google.android.youtube:id/reel_recycler", desc = "Shorts", w = 1080, h = 1920),
+                    node(
+                        id = "com.google.android.youtube:id/shorts_player",
+                        onScreen = false,
+                        w = 1080,
+                        h = 1920,
+                    ),
+                )
+            ),
+        )
+        misses.forEachIndexed { index, window ->
+            val reading = ScreenClass.read(YT, window)
+            assertFalse(reading.shortForm)
+            assertFalse(reading.clearsLatch)
+            assertFalse(
+                session.onViewer(reading.shortForm, YT, 100L + index, strict, reading.clearsLatch).block
+            )
+        }
+        assertFalse(session.onViewer(player.shortForm, YT, 500, strict, player.clearsLatch).block)
+
+        val home = ScreenClass.read(IG, home())
+        assertTrue(home.clearsLatch)
+        assertFalse(session.onViewer(home.shortForm, IG, 800, strict, home.clearsLatch).block)
+        assertTrue(session.onViewer(player.shortForm, YT, 900, strict, player.clearsLatch).block)
+    }
+
+    @Test
     fun spotlightChromeIsNotAPlayerAndThePlayerStopsOnce() {
         assertFalse(ScreenClass.read(SNAP, node(desc = "Spotlight")).shortForm)
         assertFalse(ScreenClass.read(SNAP, node(text = "Spotlight")).shortForm)
@@ -247,6 +291,51 @@ class InstagramSurfaceTest {
             ScreenClass.read(SNAP, node(id = "com.snapchat.android:id/spotlight_playback", w = 1080, h = 1920)).shortForm
         )
         stopsOnce(SNAP, player, tab)
+    }
+
+    @Test
+    fun snapChromeMissDuringOpenPlayerDoesNotPressBackAgain() {
+        val session = ShortFormSession()
+        val player = ScreenClass.read(
+            SNAP,
+            node(id = "com.snapchat.android:id/spotlight_player", w = 1080, h = 1920),
+        )
+        assertTrue(player.shortForm)
+        assertTrue(session.onViewer(player.shortForm, SNAP, 0, strict, player.clearsLatch).block)
+        session.onBlocked()
+
+        val misses = listOf(
+            node(id = "com.snapchat.android:id/spotlight_tab", desc = "Spotlight"),
+            node(id = "com.snapchat.android:id/spotlight_container", w = 1080, h = 400),
+            node(id = "com.snapchat.android:id/bottom_spotlight", desc = "Spotlight"),
+            node(id = "com.snapchat.android:id/spotlight_recycler", w = 1080, h = 800),
+            node(id = "com.snapchat.android:id/spotlight"),
+            node(
+                kids = listOf(
+                    node(id = "com.snapchat.android:id/spotlight_tab", desc = "Spotlight"),
+                    node(
+                        id = "com.snapchat.android:id/spotlight_view_pager",
+                        onScreen = false,
+                        w = 1080,
+                        h = 1920,
+                    ),
+                )
+            ),
+        )
+        misses.forEachIndexed { index, window ->
+            val reading = ScreenClass.read(SNAP, window)
+            assertFalse(reading.shortForm)
+            assertFalse(reading.clearsLatch)
+            assertFalse(
+                session.onViewer(reading.shortForm, SNAP, 100L + index, strict, reading.clearsLatch).block
+            )
+        }
+        assertFalse(session.onViewer(player.shortForm, SNAP, 500, strict, player.clearsLatch).block)
+
+        val home = ScreenClass.read(IG, home())
+        assertTrue(home.clearsLatch)
+        assertFalse(session.onViewer(home.shortForm, IG, 800, strict, home.clearsLatch).block)
+        assertTrue(session.onViewer(player.shortForm, SNAP, 900, strict, player.clearsLatch).block)
     }
 
     @Test
@@ -287,6 +376,52 @@ class InstagramSurfaceTest {
         assertFalse(session.onViewer(inboxReading.shortForm, TT, 800, strict).block)
 
         assertTrue(session.onViewer(true, TT, 2_000, strict).block)
+    }
+
+    @Test
+    fun tiktokPhraseDuringOpenFeedDoesNotPressBackAgain() {
+        val session = ShortFormSession()
+        val feed = ScreenClass.read(TT, node(desc = "For You", selected = true))
+        assertTrue(feed.shortForm)
+        assertFalse(feed.clearsLatch)
+        assertTrue(session.onViewer(feed.shortForm, TT, 0, strict, feed.clearsLatch).block)
+        session.onBlocked()
+
+        listOf("edit profile", "write a message", "message...").forEachIndexed { index, phrase ->
+            val reading = ScreenClass.read(
+                TT,
+                node(
+                    kids = listOf(
+                        node(desc = "For You", selected = true),
+                        node(text = phrase),
+                    )
+                )
+            )
+            assertFalse(reading.shortForm)
+            assertFalse(reading.clearsLatch)
+            assertFalse(session.onViewer(reading.shortForm, TT, 100L + index, strict, reading.clearsLatch).block)
+            val described = ScreenClass.read(TT, node(desc = phrase))
+            assertFalse(described.shortForm)
+            assertFalse(described.clearsLatch)
+            assertFalse(
+                session.onViewer(described.shortForm, TT, 150L + index, strict, described.clearsLatch).block
+            )
+        }
+        assertFalse(session.onViewer(feed.shortForm, TT, 400, strict, feed.clearsLatch).block)
+
+        val inbox = ScreenClass.read(
+            TT,
+            node(
+                kids = listOf(
+                    node(id = "com.zhiliaoapp.musically:id/inbox_tab", desc = "Inbox", selected = true),
+                    node(id = "com.zhiliaoapp.musically:id/inbox_recycler", w = 1080, h = 1600),
+                )
+            )
+        )
+        assertFalse(inbox.shortForm)
+        assertTrue(inbox.clearsLatch)
+        assertFalse(session.onViewer(inbox.shortForm, TT, 800, strict, inbox.clearsLatch).block)
+        assertTrue(session.onViewer(feed.shortForm, TT, 900, strict, feed.clearsLatch).block)
     }
 
     @Test
@@ -359,17 +494,16 @@ class InstagramSurfaceTest {
         val back = ScreenClass.read(packageName, returned)
         val player = ScreenClass.read(packageName, viewer)
         assertFalse(back.shortForm)
-        assertTrue(back.clearsLatch)
+        assertFalse(back.clearsLatch)
         assertTrue(player.shortForm)
         assertFalse(player.clearsLatch)
-        assertTrue(session.onViewer(true, packageName, 0, strict).block)
+        assertTrue(session.onViewer(player.shortForm, packageName, 0, strict, player.clearsLatch).block)
         session.onBlocked()
-        assertFalse(session.onViewer(true, packageName, 400, strict).block)
-        assertFalse(session.onScroll(true, packageName, 500, strict).block)
-        assertFalse(
-            session.onViewer(ScreenClass.read(packageName, returned).shortForm, packageName, 800, strict).block
-        )
-        assertTrue(session.onViewer(true, packageName, 2_000, strict).block)
+        assertFalse(session.onViewer(player.shortForm, packageName, 400, strict, player.clearsLatch).block)
+        assertFalse(session.onScroll(player.shortForm, packageName, 500, strict, player.clearsLatch).block)
+        // The shelf or the Spotlight tab is still that player. It does not press Back again.
+        assertFalse(session.onViewer(back.shortForm, packageName, 800, strict, back.clearsLatch).block)
+        assertFalse(session.onViewer(player.shortForm, packageName, 2_000, strict, player.clearsLatch).block)
     }
 
     private fun decide(reading: ScreenClass.Reading): ShortFormSession.Decision {

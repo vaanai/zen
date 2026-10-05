@@ -19,7 +19,9 @@ package com.example.zen
  * not a player. TikTok opens on the feed, so that landing may stop, once. A non-feed
  * surface in that tree is not a viewer. A block does not run again on the surface Back
  * returns to; that latch lives in [ShortFormSession]. A one-frame miss while the player
- * is still up does not clear it. A null root does not. Home does.
+ * is still up does not clear it, including YouTube or Snapchat chrome that stays with
+ * the player, and a TikTok line that only reads like a profile or a composer. A null
+ * root does not. Home does.
  */
 internal object ScreenClass {
 
@@ -49,12 +51,20 @@ internal object ScreenClass {
         private var personOnScreen = false
         private var navigatedAway = false
         private var tiktokNonFeed = false
+        private var tiktokLeftFeed = false
 
         fun take(packageName: String, node: WalkNode) {
             val suffix = idSuffix(node.viewIdResourceName)
             val onScreen = node.visibleToUser && node.width > 0 && node.height > 0
             if (packageName in TIKTOK) {
-                if (onScreen && tiktokNonFeed(suffix, node)) tiktokNonFeed = true
+                if (!onScreen) return
+                // A profile or composer line can sit on the feed for one frame. It is not
+                // the feed, and it is not a trip to Inbox.
+                if (tiktokPhrase(node)) tiktokNonFeed = true
+                if (tiktokStructuralNonFeed(suffix, node)) {
+                    tiktokNonFeed = true
+                    tiktokLeftFeed = true
+                }
                 return
             }
             when (packageName) {
@@ -65,12 +75,13 @@ internal object ScreenClass {
                     if (onScreen && node.selected && suffix in DESTINATION_TABS) navigatedAway = true
                 }
                 YOUTUBE -> {
+                    // A shelf, a recycler, and the watch page stay up inside the player.
+                    // They are not a viewer, and they are not Home.
                     if (onScreen && youtubePlayer(suffix)) viewerOnScreen = true
-                    if (onScreen && youtubeAway(suffix)) navigatedAway = true
                 }
                 SNAPCHAT -> {
+                    // Spotlight chrome stays up with the player. It is not a destination.
                     if (onScreen && snapViewer(suffix)) viewerOnScreen = true
-                    if (onScreen && snapAway(suffix)) navigatedAway = true
                     if (onScreen && snapPerson(suffix, node)) personOnScreen = true
                 }
             }
@@ -82,7 +93,7 @@ internal object ScreenClass {
                 return Reading(
                     shortForm = !tiktokNonFeed,
                     personSurface = false,
-                    clearsLatch = tiktokNonFeed,
+                    clearsLatch = tiktokLeftFeed,
                 )
             }
             val shortForm = viewerOnScreen && !homeTabSelected && !personOnScreen
@@ -119,22 +130,10 @@ internal object ScreenClass {
         return suffix in YOUTUBE_VIEWER
     }
 
-    /** Shelf, recycler, and the watch page. Not the Shorts player, and not the word "Shorts". */
-    private fun youtubeAway(suffix: String?): Boolean {
-        if (suffix == null || youtubePlayer(suffix)) return false
-        if (suffix.contains("recycler") || suffix.contains("shelf")) return true
-        return suffix == "shorts_container" || suffix == "watch_while_layout"
-    }
-
-    /** Spotlight chrome. A player id is not a destination, even when this frame cannot see it. */
-    private fun snapAway(suffix: String?): Boolean {
-        if (suffix == null || !suffix.contains("spotlight")) return false
-        return !snapViewer(suffix)
-    }
-
     /**
      * A spotlight player. The tab, its label, a recycler, and any other spotlight id are
-     * the chrome Snapchat leaves up outside the player.
+     * the chrome Snapchat leaves up outside the player. That chrome does not clear the
+     * latch: it stays on screen when the player id drops for a frame.
      */
     private fun snapViewer(suffix: String?): Boolean {
         if (suffix == null || !suffix.contains("spotlight")) return false
@@ -144,17 +143,21 @@ internal object ScreenClass {
     }
 
     /**
-     * A TikTok surface that is not the feed. The Inbox and Profile tabs sit on the feed
-     * too; only the selected tab, or a screen id that is not chrome, counts.
+     * Inbox, Profile, or Search actually open. A tab id that merely contains "inbox"
+     * is still the feed. The three composer and profile lines are not this.
      */
-    private fun tiktokNonFeed(suffix: String?, node: WalkNode): Boolean {
+    private fun tiktokStructuralNonFeed(suffix: String?, node: WalkNode): Boolean {
         if (suffix != null &&
             TIKTOK_CHROME.none { suffix.contains(it) } &&
             TIKTOK_NON_FEED_IDS.any { suffix.contains(it) }
         ) {
             return true
         }
-        if (node.selected && exactLabel(node) in TIKTOK_NON_FEED_TABS) return true
+        return node.selected && exactLabel(node) in TIKTOK_NON_FEED_TABS
+    }
+
+    /** One frame of profile or composer copy on the feed. Not a selected tab. */
+    private fun tiktokPhrase(node: WalkNode): Boolean {
         val label = exactLabel(node)
         return label.isNotEmpty() && label in TIKTOK_NON_FEED_PHRASES
     }
