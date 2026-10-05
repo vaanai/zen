@@ -18,20 +18,23 @@ package com.example.zen
  * they sit on Home. The Shorts player is the viewer. Snapchat's Spotlight tab label is
  * not a player. TikTok opens on the feed, so that landing may stop, once. A non-feed
  * surface in that tree is not a viewer. A block does not run again on the surface Back
- * returns to; that latch lives in [ShortFormSession].
+ * returns to; that latch lives in [ShortFormSession]. A one-frame miss while the player
+ * is still up does not clear it. A null root does not. Home does.
  */
 internal object ScreenClass {
 
     data class Reading(
         val shortForm: Boolean,
         val personSurface: Boolean,
+        /** Home, the inbox, or another real destination. A miss while the player is up is false. */
+        val clearsLatch: Boolean,
     )
 
     fun read(packageName: String, root: WalkNode?): Reading {
         // Opening TikTok is the feed, including a missed frame. A null root must not look
         // like a non-feed surface, or the one-block latch would clear and Back would fire again.
         val tiktok = packageName in TIKTOK
-        if (root == null) return Reading(shortForm = tiktok, personSurface = false)
+        if (root == null) return Reading(shortForm = tiktok, personSurface = false, clearsLatch = false)
         val seen = Seen()
         NodeWalk.walk(root, MAX_NODES, MAX_DEPTH) { node ->
             seen.take(packageName, node)
@@ -44,6 +47,7 @@ internal object ScreenClass {
         private var viewerOnScreen = false
         private var homeTabSelected = false
         private var personOnScreen = false
+        private var navigatedAway = false
         private var tiktokNonFeed = false
 
         fun take(packageName: String, node: WalkNode) {
@@ -58,12 +62,15 @@ internal object ScreenClass {
                     if (onScreen && suffix == HOME_TAB && node.selected) homeTabSelected = true
                     if (onScreen && suffix in INSTAGRAM_VIEWER) viewerOnScreen = true
                     if (onScreen && instagramPerson(suffix, node)) personOnScreen = true
+                    if (onScreen && node.selected && suffix in DESTINATION_TABS) navigatedAway = true
                 }
                 YOUTUBE -> {
                     if (onScreen && youtubePlayer(suffix)) viewerOnScreen = true
+                    if (onScreen && youtubeAway(suffix)) navigatedAway = true
                 }
                 SNAPCHAT -> {
                     if (onScreen && snapViewer(suffix)) viewerOnScreen = true
+                    if (onScreen && snapAway(suffix)) navigatedAway = true
                     if (onScreen && snapPerson(suffix, node)) personOnScreen = true
                 }
             }
@@ -72,12 +79,25 @@ internal object ScreenClass {
         fun reading(tiktok: Boolean): Reading {
             if (tiktok) {
                 // The inbox does not arm a friend session. TikTok cannot tell a friend from For You.
-                return Reading(shortForm = !tiktokNonFeed, personSurface = false)
+                return Reading(
+                    shortForm = !tiktokNonFeed,
+                    personSurface = false,
+                    clearsLatch = tiktokNonFeed,
+                )
+            }
+            val shortForm = viewerOnScreen && !homeTabSelected && !personOnScreen
+            // Home wins over a sized pager. A sized player with no Home tab is still that player,
+            // even when this frame also looks like a chat. Anything else needs a real destination.
+            val clearsLatch = when {
+                shortForm -> false
+                homeTabSelected -> true
+                viewerOnScreen -> false
+                else -> navigatedAway || personOnScreen
             }
             return Reading(
-                // Home and an open chat win over a viewer id sitting in the same window.
-                shortForm = viewerOnScreen && !homeTabSelected && !personOnScreen,
+                shortForm = shortForm,
                 personSurface = personOnScreen,
+                clearsLatch = clearsLatch,
             )
         }
     }
@@ -97,6 +117,19 @@ internal object ScreenClass {
         if (suffix == null) return false
         if (suffix.contains("recycler") || suffix.contains("shelf")) return false
         return suffix in YOUTUBE_VIEWER
+    }
+
+    /** Shelf, recycler, and the watch page. Not the Shorts player, and not the word "Shorts". */
+    private fun youtubeAway(suffix: String?): Boolean {
+        if (suffix == null || youtubePlayer(suffix)) return false
+        if (suffix.contains("recycler") || suffix.contains("shelf")) return true
+        return suffix == "shorts_container" || suffix == "watch_while_layout"
+    }
+
+    /** Spotlight chrome. A player id is not a destination, even when this frame cannot see it. */
+    private fun snapAway(suffix: String?): Boolean {
+        if (suffix == null || !suffix.contains("spotlight")) return false
+        return !snapViewer(suffix)
     }
 
     /**
@@ -180,6 +213,16 @@ internal object ScreenClass {
 
     /** Player-shaped spotlight ids. "spotlight" alone is the tab. */
     private val SNAP_PLAYER = listOf("player", "pager", "playback")
+
+    /** Selected tabs that replace the player. The Reels tab is the player loading, not Home. */
+    private val DESTINATION_TABS = setOf(
+        "feed_tab",
+        "direct_tab",
+        "profile_tab",
+        "search_tab",
+        "camera_tab",
+        "news_tab",
+    )
 
     private val CHROME_TABS = setOf(
         "feed_tab",

@@ -69,7 +69,13 @@ class ZenAccessibilityService : AccessibilityService() {
             val reading = ScreenClass.read(packageName, window)
             when (event.eventType) {
                 AccessibilityEvent.TYPE_VIEW_SCROLLED ->
-                    session.onScroll(reading.shortForm, packageName, now, settings)
+                    session.onScroll(
+                        reading.shortForm,
+                        packageName,
+                        now,
+                        settings,
+                        clearsLatch = reading.clearsLatch,
+                    )
 
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
                 AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
@@ -78,7 +84,13 @@ class ZenAccessibilityService : AccessibilityService() {
                     maybeDumpTree(packageName, window, reading.shortForm)
 
                     if (reading.personSurface) session.noteInAppPersonSurface(now)
-                    session.onViewer(reading.shortForm, packageName, now, settings)
+                    session.onViewer(
+                        reading.shortForm,
+                        packageName,
+                        now,
+                        settings,
+                        clearsLatch = reading.clearsLatch,
+                    )
                 }
 
                 else -> return

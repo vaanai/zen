@@ -19,8 +19,9 @@ package com.example.zen
  * session stays open.
  *
  * [onBlocked] also latches the surface Back returns to. A later event that still looks like
- * that viewer does not block again and does not press Back again. A real non-viewer window
- * (Home, the inbox) clears the latch, so the next feed the user opens can stop once.
+ * that viewer does not block again and does not press Back again. A real navigation
+ * (Home, the inbox, a post) clears the latch, so the next feed the user opens can stop once.
+ * A one-frame non-viewer while that player is still up does not, and a null root does not.
  */
 class ShortFormSession {
 
@@ -100,12 +101,13 @@ class ShortFormSession {
         visible: Boolean,
         packageName: String,
         now: Long,
-        settings: Settings
+        settings: Settings,
+        clearsLatch: Boolean = !visible,
     ): Decision {
         applyEnabled(settings)
         if (!visible) {
-            // Home, the inbox, or a post. The surface Back returned to is gone.
-            returnedByBack = false
+            // Home, the inbox, or a post. A one-frame miss while the player is still up is not.
+            if (clearsLatch) returnedByBack = false
             if (friendPackage == null) {
                 unarmedPackage = null
                 scrolls = 0
@@ -126,11 +128,12 @@ class ShortFormSession {
         visible: Boolean,
         packageName: String,
         now: Long,
-        settings: Settings
+        settings: Settings,
+        clearsLatch: Boolean = !visible,
     ): Decision {
         applyEnabled(settings)
         if (!visible) {
-            return onViewer(visible = false, packageName, now, settings)
+            return onViewer(visible = false, packageName, now, settings, clearsLatch)
         }
         if (returnedByBack) {
             return onViewer(visible = true, packageName, now, settings)

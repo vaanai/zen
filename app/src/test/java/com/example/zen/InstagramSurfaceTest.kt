@@ -22,6 +22,7 @@ class InstagramSurfaceTest {
         val reading = ScreenClass.read(IG, home())
         assertFalse(reading.shortForm)
         assertFalse(reading.personSurface)
+        assertTrue(reading.clearsLatch)
         assertFalse(decide(reading).block)
     }
 
@@ -36,6 +37,7 @@ class InstagramSurfaceTest {
         val reading = ScreenClass.read(IG, inbox())
         assertFalse(reading.shortForm)
         assertTrue(reading.personSurface)
+        assertTrue(reading.clearsLatch)
         val session = ShortFormSession()
         session.noteInAppPersonSurface(0)
         assertFalse(session.onViewer(reading.shortForm, IG, 0, strict).block)
@@ -46,6 +48,7 @@ class InstagramSurfaceTest {
         val reading = ScreenClass.read(IG, messagesTab())
         assertFalse(reading.shortForm)
         assertFalse(reading.personSurface)
+        assertTrue(reading.clearsLatch)
         val session = ShortFormSession()
         if (reading.personSurface) session.noteInAppPersonSurface(0)
         assertFalse(session.onViewer(reading.shortForm, IG, 0, strict).block)
@@ -57,6 +60,7 @@ class InstagramSurfaceTest {
         val reading = ScreenClass.read(IG, post())
         assertFalse(reading.shortForm)
         assertFalse(reading.personSurface)
+        assertTrue(reading.clearsLatch)
         assertFalse(decide(reading).block)
     }
 
@@ -78,6 +82,40 @@ class InstagramSurfaceTest {
 
         // A later open, after Home, can stop once.
         assertTrue(session.onViewer(reels.shortForm, IG, 2_000, strict).block)
+    }
+
+    @Test
+    fun oneFrameFlickerDuringOpenPlayerDoesNotPressBackAgain() {
+        val session = ShortFormSession()
+        val reels = ScreenClass.read(IG, reels())
+        assertTrue(reels.shortForm)
+        assertFalse(reels.clearsLatch)
+        assertTrue(session.onViewer(reels.shortForm, IG, 0, strict, reels.clearsLatch).block)
+        session.onBlocked()
+
+        // The player is still in the tree, but this frame cannot see it. Not Home.
+        val flicker = ScreenClass.read(IG, reelsMissedFrame())
+        assertFalse(flicker.shortForm)
+        assertFalse(flicker.clearsLatch)
+        assertFalse(session.onViewer(flicker.shortForm, IG, 100, strict, flicker.clearsLatch).block)
+
+        val blank = ScreenClass.read(IG, node())
+        assertFalse(blank.shortForm)
+        assertFalse(blank.clearsLatch)
+        assertFalse(session.onViewer(blank.shortForm, IG, 150, strict, blank.clearsLatch).block)
+
+        // A null root is not Home either.
+        val missing = ScreenClass.read(IG, null)
+        assertFalse(missing.clearsLatch)
+        assertFalse(session.onViewer(missing.shortForm, IG, 180, strict, missing.clearsLatch).block)
+
+        assertFalse(session.onViewer(reels.shortForm, IG, 200, strict, reels.clearsLatch).block)
+        assertFalse(session.onScroll(reels.shortForm, IG, 220, strict, reels.clearsLatch).block)
+
+        val home = ScreenClass.read(IG, home())
+        assertTrue(home.clearsLatch)
+        assertFalse(session.onViewer(home.shortForm, IG, 300, strict, home.clearsLatch).block)
+        assertTrue(session.onViewer(reels.shortForm, IG, 400, strict, reels.clearsLatch).block)
     }
 
     @Test
@@ -111,7 +149,9 @@ class InstagramSurfaceTest {
                 node(id = "com.instagram.android:id/clips_viewer_view_pager", w = 1080, h = 1920),
             )
         )
-        assertFalse(ScreenClass.read(IG, window).shortForm)
+        val reading = ScreenClass.read(IG, window)
+        assertFalse(reading.shortForm)
+        assertTrue(reading.clearsLatch)
     }
 
     @Test
@@ -224,6 +264,7 @@ class InstagramSurfaceTest {
         assertTrue(reading.shortForm)
         assertFalse(reading.personSurface)
         assertTrue(ScreenClass.read(TT, null).shortForm)
+        assertFalse(ScreenClass.read(TT, null).clearsLatch)
 
         val session = ShortFormSession()
         assertTrue(session.onViewer(reading.shortForm, TT, 0, strict).block)
@@ -242,6 +283,7 @@ class InstagramSurfaceTest {
         val inboxReading = ScreenClass.read(TT, inbox)
         assertFalse(inboxReading.shortForm)
         assertFalse(inboxReading.personSurface)
+        assertTrue(inboxReading.clearsLatch)
         assertFalse(session.onViewer(inboxReading.shortForm, TT, 800, strict).block)
 
         assertTrue(session.onViewer(true, TT, 2_000, strict).block)
@@ -314,8 +356,12 @@ class InstagramSurfaceTest {
 
     private fun stopsOnce(packageName: String, viewer: WalkNode, returned: WalkNode) {
         val session = ShortFormSession()
-        assertFalse(ScreenClass.read(packageName, returned).shortForm)
-        assertTrue(ScreenClass.read(packageName, viewer).shortForm)
+        val back = ScreenClass.read(packageName, returned)
+        val player = ScreenClass.read(packageName, viewer)
+        assertFalse(back.shortForm)
+        assertTrue(back.clearsLatch)
+        assertTrue(player.shortForm)
+        assertFalse(player.clearsLatch)
         assertTrue(session.onViewer(true, packageName, 0, strict).block)
         session.onBlocked()
         assertFalse(session.onViewer(true, packageName, 400, strict).block)
@@ -371,6 +417,19 @@ class InstagramSurfaceTest {
             node(id = "com.instagram.android:id/row_feed_photo_imageview", desc = "Photo by Sam", w = 1080, h = 1080),
             node(id = "com.instagram.android:id/clips_video_container", w = 1080, h = 800),
             node(text = "reels"),
+        )
+    )
+
+    /** Same Reels window, one frame where the pager is not visible. */
+    private fun reelsMissedFrame(): WalkNode = node(
+        kids = listOf(
+            node(id = "com.instagram.android:id/clips_tab", desc = "Reels", selected = true),
+            node(
+                id = "com.instagram.android:id/clips_viewer_view_pager",
+                onScreen = false,
+                w = 1080,
+                h = 1920,
+            ),
         )
     )
 
