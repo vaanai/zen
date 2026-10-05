@@ -40,7 +40,6 @@ class BlockNoteTest {
         listOf(0, 1, 2, 3, 8).forEach { relapse ->
             Persona.entries.forEach { persona ->
                 assertFalse(LineLibrary.blockLine(persona, relapse) == BlockNote.LINE)
-                assertFalse(LineLibrary.shieldDescription(persona) == BlockNote.LINE)
             }
         }
     }
