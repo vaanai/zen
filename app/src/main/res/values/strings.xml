@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Zen</string>
-    <string name="accessibility_service_description">On this device, Zen reads screen text to tell a chat from a player. It uses that to keep friends\' reels open and to stop a feed you open yourself. It does not send that text anywhere.</string>
+    <string name="accessibility_service_description">On this device, Zen reads screen text to tell a chat from a player. It does not send that text anywhere.</string>
 </resources>

@@ -2,42 +2,51 @@ package com.example.zen.ui.main
 
 import android.content.Intent
 import android.provider.Settings
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.zen.data.AppUsageItem
-import com.example.zen.persona.LineLibrary
-import com.example.zen.persona.LocalPersona
 import com.example.zen.persona.LocalPersonaColors
+import com.example.zen.ui.components.AppRuleRows
 import com.example.zen.ui.components.GlassCard
 import com.example.zen.ui.components.LocalHazeState
-import com.example.zen.ui.components.PersonaSigil
 import com.example.zen.ui.components.RuleStatement
-import com.example.zen.ui.components.SectionHeader
-import com.example.zen.ui.components.StatChip
 import com.example.zen.ui.design.ZenRadius
 import com.example.zen.ui.design.ZenSpacing
 import dev.chrisbanes.haze.hazeSource
@@ -49,37 +58,14 @@ fun MainScreen(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val c = LocalPersonaColors.current
-    val persona = LocalPersona.current
-
     val hazeState = rememberHazeState()
-
-    // Slow, subtle drift of the gradient so the backdrop feels alive without distracting.
-    val drift = rememberInfiniteTransition(label = "gradientDrift")
-    val shift by drift.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(20000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "gradientShift"
-    )
-
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by pulse.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
-        label = "pulseAlpha"
-    )
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .drawAnimatedGradient(c.gradient, shift)
+            .background(Brush.verticalGradient(c.gradient))
             .hazeSource(hazeState)
     ) {
         CompositionLocalProvider(LocalHazeState provides hazeState) {
@@ -87,11 +73,9 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = ZenSpacing.screenGutter),
-                horizontalAlignment = Alignment.CenterHorizontally,
                 contentPadding = PaddingValues(top = ZenSpacing.xl, bottom = ZenSpacing.xxl)
             ) {
-                item { HeaderRow(persona.displayName, persona.statusBadge, onOpenSettings) }
-
+                item { HeaderRow(onOpenSettings) }
                 item {
                     RuleHero(
                         friendPassEnabled = uiState.friendPassEnabled,
@@ -101,83 +85,39 @@ fun MainScreen(
                         onOpen = onOpenSettings
                     )
                 }
-
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = ZenSpacing.sm, bottom = ZenSpacing.xl),
-                        horizontalArrangement = Arrangement.spacedBy(ZenSpacing.md)
-                    ) {
-                        StatChip(
-                            value = "${uiState.streakDays}",
-                            label = "Day streak",
-                            icon = Icons.Default.LocalFireDepartment,
-                            modifier = Modifier.weight(1f)
+                    AppRuleRows(
+                        isGuarded = { name -> name in uiState.guardedAppNames },
+                        friendPassEnabled = uiState.friendPassEnabled,
+                        grouped = true
+                    )
+                }
+                item {
+                    if (uiState.isAccessibilityEnabled) {
+                        Text(
+                            text = "On.",
+                            style = MaterialTheme.typography.bodyLarge.copy(letterSpacing = 0.sp),
+                            color = c.textSecondary,
+                            modifier = Modifier.padding(top = ZenSpacing.sm)
                         )
-                        StatChip(
-                            value = "${uiState.totalTimeSpentMinutes}m",
-                            label = "Today / ${uiState.dailyCapMinutes}m",
-                            modifier = Modifier.weight(1f)
-                        )
-                        StatChip(
-                            value = "${uiState.savesTotal}",
-                            label = "All-time",
-                            modifier = Modifier.weight(1f)
-                        )
+                    } else {
+                        GuardOffCard()
                     }
                 }
-
-                item { ShieldCard(persona) }
-
                 item {
-                    SectionHeader("System settings", Modifier.padding(top = ZenSpacing.sm))
-                }
-                item {
-                    PermissionCard(
-                        title = "Accessibility Blocker Service",
-                        description = "Required to detect and block Reels / Shorts.",
-                        isActive = uiState.isAccessibilityEnabled,
-                        pulseAlpha = pulseAlpha,
-                        onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                    Captions(
+                        savesToday = uiState.savesToday,
+                        usageGranted = uiState.isUsageAccessEnabled,
+                        minutes = uiState.totalTimeSpentMinutes
                     )
-                    Spacer(Modifier.height(ZenSpacing.md))
-                }
-                item {
-                    PermissionCard(
-                        title = "Screen Time Usage Access",
-                        description = "Required for screen-time stats on this dashboard.",
-                        isActive = uiState.isUsageAccessEnabled,
-                        pulseAlpha = pulseAlpha,
-                        onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
-                    )
-                    Spacer(Modifier.height(ZenSpacing.sectionGap))
-                }
-
-                if (uiState.isUsageAccessEnabled && uiState.appStatsList.isNotEmpty()) {
-                    item { SectionHeader("Detailed screen time") }
-                    items(uiState.appStatsList) { app ->
-                        AppStatsCard(app = app)
-                        Spacer(Modifier.height(ZenSpacing.sm))
-                    }
                 }
             }
         }
     }
 }
 
-/** Draws the persona's vertical gradient with a slow animated vertical drift. */
-private fun Modifier.drawAnimatedGradient(stops: List<Color>, shift: Float): Modifier =
-    this.background(
-        Brush.verticalGradient(
-            colors = stops,
-            startY = -400f * shift,
-            endY = Float.POSITIVE_INFINITY
-        )
-    )
-
 @Composable
-private fun HeaderRow(name: String, badge: String, onOpenSettings: () -> Unit) {
+private fun HeaderRow(onOpenSettings: () -> Unit) {
     val c = LocalPersonaColors.current
     Row(
         modifier = Modifier
@@ -185,31 +125,19 @@ private fun HeaderRow(name: String, badge: String, onOpenSettings: () -> Unit) {
             .padding(bottom = ZenSpacing.lg),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = name.uppercase(),
-                style = MaterialTheme.typography.headlineSmall,
-                color = c.textPrimary
-            )
-            Spacer(Modifier.height(ZenSpacing.xs))
-            Surface(color = c.accent.copy(alpha = 0.18f), shape = ZenRadius.pill) {
-                Text(
-                    text = badge,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = c.accent,
-                    modifier = Modifier.padding(horizontal = ZenSpacing.md, vertical = ZenSpacing.xs)
-                )
-            }
-        }
+        Text(
+            text = "Zen",
+            style = MaterialTheme.typography.headlineSmall,
+            color = c.textPrimary,
+            modifier = Modifier.weight(1f)
+        )
         IconButton(onClick = onOpenSettings) {
-            Icon(Icons.Default.Settings, "Settings", tint = c.textSecondary)
+            Icon(Icons.Default.Settings, contentDescription = "Settings", tint = c.textSecondary)
         }
     }
 }
 
-/**
- * The rule, readable with settings still locked. Tapping it opens the lock, then the edit.
- */
+/** The rule, readable with settings still locked. Tapping it opens the lock, then the edit. */
 @Composable
 private fun RuleHero(
     friendPassEnabled: Boolean,
@@ -224,8 +152,12 @@ private fun RuleHero(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = ZenSpacing.xl)
-            .clip(ZenRadius.hero)
-            .clickable(interactionSource = source, indication = null) { onOpen() },
+            .clickable(
+                interactionSource = source,
+                indication = null,
+                onClickLabel = "Edit the rule",
+                onClick = onOpen
+            ),
         shape = ZenRadius.hero,
         contentPadding = ZenSpacing.xl,
         pressed = pressed
@@ -235,120 +167,90 @@ private fun RuleHero(
             allowedScrolls = allowedScrolls,
             tiktokGuarded = tiktokGuarded,
             youtubeGuarded = youtubeGuarded,
-            includeLimits = true,
+            includeLimits = false,
             emphasize = true,
             modifier = Modifier.fillMaxWidth()
         )
     }
 }
 
+/** The only motion on this screen, and only while the guard is off. */
 @Composable
-private fun ShieldCard(persona: com.example.zen.persona.Persona) {
+private fun GuardOffCard() {
+    val context = LocalContext.current
     val c = LocalPersonaColors.current
-    GlassCard(modifier = Modifier
-        .fillMaxWidth()
-        .padding(bottom = ZenSpacing.sectionGap)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PersonaSigil()
-            Spacer(Modifier.width(ZenSpacing.lg))
-            Column {
-                Text(
-                    text = LineLibrary.shieldTitle(persona),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = c.textPrimary
-                )
-                Text(
-                    text = LineLibrary.shieldDescription(persona),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = c.textSecondary
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun PermissionCard(
-    title: String,
-    description: String,
-    isActive: Boolean,
-    pulseAlpha: Float,
-    onClick: () -> Unit
-) {
-    val c = LocalPersonaColors.current
+    val pulse = rememberInfiniteTransition(label = "guardOff")
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "guardOffAlpha"
+    )
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ZenRadius.card)
-            .clickable(interactionSource = source, indication = null) { onClick() },
+            .clickable(
+                interactionSource = source,
+                indication = null,
+                onClickLabel = "Turn on accessibility",
+                onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            ),
         pressed = pressed
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
+                Text(
+                    text = "The guard is off",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = c.warn
+                )
                 Spacer(Modifier.height(ZenSpacing.xs))
-                Text(description, style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
-            }
-            Spacer(Modifier.width(ZenSpacing.lg))
-            if (isActive) {
-                Icon(Icons.Default.CheckCircle, "Active", tint = c.safe, modifier = Modifier.size(24.dp))
-            } else {
-                Icon(
-                    Icons.Default.Warning,
-                    "Pending",
-                    tint = c.warn.copy(alpha = pulseAlpha),
-                    modifier = Modifier.size(24.dp)
+                Text(
+                    text = "Accessibility is off. Zen can't keep this rule until it's on.",
+                    style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
+                    color = c.textSecondary
                 )
             }
+            Spacer(Modifier.width(ZenSpacing.lg))
+            Icon(
+                Icons.Default.Warning,
+                contentDescription = "Off",
+                tint = c.warn.copy(alpha = pulseAlpha),
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
 
 @Composable
-fun AppStatsCard(app: AppUsageItem) {
+private fun Captions(savesToday: Int, usageGranted: Boolean, minutes: Long) {
     val c = LocalPersonaColors.current
-    val appColor = remember(app.colorHex) {
-        try {
-            Color(android.graphics.Color.parseColor(app.colorHex))
-        } catch (e: Exception) {
-            c.accent
-        }
-    }
-    GlassCard(modifier = Modifier.fillMaxWidth(), shape = ZenRadius.chip, contentPadding = ZenSpacing.md) {
-        Column {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(appColor)
-                    )
-                    Spacer(Modifier.width(ZenSpacing.sm))
-                    Text(app.appName, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
-                }
-                Text("${app.timeSpentMinutes} mins", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = ZenSpacing.xl)
+    ) {
+        Text(
+            text = stopsCaption(savesToday),
+            style = MaterialTheme.typography.bodySmall,
+            color = c.textSecondary
+        )
+        if (usageGranted) {
             Spacer(Modifier.height(ZenSpacing.sm))
-            val progress = remember(app.timeSpentMinutes) {
-                (app.timeSpentMinutes / 60f).coerceIn(0.02f, 1f)
-            }
-            LinearProgressIndicator(
-                progress = { progress },
-                color = appColor,
-                trackColor = c.textPrimary.copy(alpha = 0.05f),
-                strokeCap = StrokeCap.Round,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp))
+            Text(
+                text = "Time in these apps today",
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textSecondary
+            )
+            Text(
+                text = "$minutes min",
+                style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
+                color = c.textPrimary
             )
         }
     }
 }
+
+private fun stopsCaption(count: Int): String = if (count == 1) "1 stop today" else "$count stops today"

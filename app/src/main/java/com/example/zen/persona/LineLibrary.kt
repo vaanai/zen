@@ -27,32 +27,6 @@ object LineLibrary {
         Persona.SAGE -> "So. You have enlisted a philosopher to mind your attention. Wise, for once."
     }
 
-    fun shieldTitle(persona: Persona): String = when (persona) {
-        Persona.GOBLIN -> "Dopamine Goblin Shield"
-        Persona.COACH -> "Focus Training Mode"
-        Persona.ZEN -> "Stillness Guard"
-        Persona.SAGE -> "The Examined Feed"
-    }
-
-    fun shieldDescription(persona: Persona): String = when (persona) {
-        Persona.GOBLIN ->
-            "Try to scroll a short-form feed and I'll roast you and bounce you straight back out."
-        Persona.COACH ->
-            "Catch yourself reaching for the feed and I'll redirect that energy somewhere useful."
-        Persona.ZEN ->
-            "When the pull to scroll arises, I'll meet it with one calm breath and ease you away."
-        Persona.SAGE ->
-            "Should you attempt an idle scroll, I shall intervene with a small, deserved lecture."
-    }
-
-    /** Label for the dashboard's headline metric. */
-    fun savesLabel(persona: Persona): String = when (persona) {
-        Persona.GOBLIN -> "SCROLLS BLOCKED"
-        Persona.COACH -> "REPS WON"
-        Persona.ZEN -> "MOMENTS RECLAIMED"
-        Persona.SAGE -> "TEMPTATIONS RESISTED"
-    }
-
     private fun tierFor(relapseCount: Int): Int = when {
         relapseCount <= 1 -> 0
         relapseCount <= 3 -> 1
