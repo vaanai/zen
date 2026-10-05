@@ -87,7 +87,12 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = ZenSpacing.md, vertical = ZenSpacing.sm),
+                        .padding(
+                            start = ZenSpacing.xs,
+                            end = ZenSpacing.sm,
+                            top = ZenSpacing.md,
+                            bottom = ZenSpacing.xs
+                        ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onBack) {
@@ -146,7 +151,7 @@ private fun LockGate(prefs: ZenPrefs, tick: Int) {
             Spacer(Modifier.height(ZenSpacing.xl))
             Icon(Icons.Default.Lock, contentDescription = null, tint = c.accent, modifier = Modifier.size(40.dp))
             Spacer(Modifier.height(ZenSpacing.md))
-            Text("This rule is locked", style = MaterialTheme.typography.titleSmall, color = c.textPrimary)
+            Text("This rule is locked", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
             Spacer(Modifier.height(ZenSpacing.sm))
             Text(
                 text = "You committed to this on purpose. Changing it should take a moment of intention.",
@@ -341,9 +346,19 @@ private fun UnlockedSettings(
 private fun fieldColors(): androidx.compose.material3.TextFieldColors {
     val c = LocalPersonaColors.current
     return OutlinedTextFieldDefaults.colors(
+        focusedTextColor = c.textPrimary,
+        unfocusedTextColor = c.textPrimary,
         focusedBorderColor = c.accent,
+        unfocusedBorderColor = c.textSecondary,
         focusedLabelColor = c.accent,
-        cursorColor = c.accent
+        unfocusedLabelColor = c.textSecondary,
+        cursorColor = c.accent,
+        focusedContainerColor = c.cardBackground,
+        unfocusedContainerColor = c.cardBackground,
+        errorTextColor = c.textPrimary,
+        errorBorderColor = c.danger,
+        errorLabelColor = c.danger,
+        errorCursorColor = c.danger
     )
 }
 

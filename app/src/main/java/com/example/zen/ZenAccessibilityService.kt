@@ -30,9 +30,6 @@ class ZenAccessibilityService : AccessibilityService() {
         "com.google.android.apps.messaging",
         "com.samsung.android.messaging"
     )
-    private val tiktokPackages = setOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill")
-
-    private var lastBlockTime = 0L
     private var armLogged = false
     private var lastDumpTime = 0L
 
@@ -62,26 +59,26 @@ class ZenAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (now - lastBlockTime < BLOCK_COOLDOWN_MS) return
-
         val settings = currentSettings()
         // The active window is ours to recycle, including when this event is neither a scroll nor a window.
+        // A null root is a missed frame. It must not look like Home, or the one-block latch clears
+        // and the same viewer fires Back again.
         val root = obtainActiveWindow()
         val decision = useObtainedOrNull(root, FrameworkNode::recycle) { window ->
+            if (window == null) return
+            val reading = ScreenClass.read(packageName, window)
             when (event.eventType) {
                 AccessibilityEvent.TYPE_VIEW_SCROLLED ->
-                    session.onScroll(isShortForm(packageName, window), packageName, now, settings)
+                    session.onScroll(reading.shortForm, packageName, now, settings)
 
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
                 AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
                     // Diagnostic: dump what this app actually exposes so we can tune detection from a
                     // real logcat (`adb logcat -s ZenScan`). Throttled so it doesn't flood.
-                    maybeDumpTree(packageName, window)
+                    maybeDumpTree(packageName, window, reading.shortForm)
 
-                    if (window != null && isDirectMessageScreen(window, packageName)) {
-                        session.noteInAppPersonSurface(now)
-                    }
-                    session.onViewer(isShortForm(packageName, window), packageName, now, settings)
+                    if (reading.personSurface) session.noteInAppPersonSurface(now)
+                    session.onViewer(reading.shortForm, packageName, now, settings)
                 }
 
                 else -> return
@@ -118,7 +115,6 @@ class ZenAccessibilityService : AccessibilityService() {
     )
 
     private fun block(packageName: String) {
-        lastBlockTime = System.currentTimeMillis()
         val relapseTier = prefs.recordSave()
         Log.d(TAG, "Blocked $packageName (relapse #$relapseTier): ${BlockNote.LINE}")
         overlay?.show(prefs.persona)
@@ -127,57 +123,17 @@ class ZenAccessibilityService : AccessibilityService() {
         session.onBlocked()
     }
 
-    private fun isShortForm(packageName: String, root: WalkNode?): Boolean {
-        // TikTok is exclusively short-form.
-        if (packageName in tiktokPackages) return true
-        if (root == null) return false
-        return NodeWalk.anyMatch(root, MAX_NODES, MAX_DEPTH) { node ->
-            matchesShortForm(packageName, node)
-        }
-    }
-
-    /**
-     * Whether a single node identifies the *active short-form player* (not merely a nav tab).
-     *
-     * Resource-ids are the reliable discriminator: the "Reels"/"Shorts" bottom-nav tabs are present
-     * on every screen (including the home feed), so matching on the words alone would false-positive
-     * everywhere. The reel/short *viewer* exposes distinctive container ids instead. Text is only a
-     * last-resort fallback for apps whose ids are fully obfuscated (e.g. Snapchat Spotlight).
-     */
-    private fun matchesShortForm(pkg: String, node: WalkNode): Boolean {
-        val id = node.viewIdResourceName?.lowercase()
-        val text = node.text?.toString()?.lowercase()
-        val desc = node.contentDescription?.toString()?.lowercase()
-        return when (pkg) {
-            "com.instagram.android" ->
-                idContains(id, "clips_viewer", "clips_video", "reel_viewer", "reel_feed")
-            "com.google.android.youtube" ->
-                idContains(id, "reel_recycler", "reel_player", "shorts_player", "reel_watch")
-            "com.snapchat.android" ->
-                idContains(id, "spotlight", "discover_feed") || anyContains(text, desc, "spotlight")
-            else -> anyContains(text, desc, "reels", "shorts", "spotlight", "for you")
-        }
-    }
-
-    private fun idContains(id: String?, vararg needles: String): Boolean =
-        id != null && needles.any { id.contains(it) }
-
-    private fun anyContains(text: String?, desc: String?, vararg needles: String): Boolean =
-        (text != null && needles.any { text.contains(it) }) ||
-            (desc != null && needles.any { desc.contains(it) })
-
     /**
      * Logs the resource-ids / text / content-descriptions the current screen exposes, throttled to
      * once per [DUMP_THROTTLE_MS]. This is how we learn each app's *real* ids when testing on-device:
      * `adb logcat -s ZenScan`. Only nodes carrying an id or visible text are logged, capped in count.
      */
-    private fun maybeDumpTree(packageName: String, root: WalkNode?) {
-        if (root == null) return
+    private fun maybeDumpTree(packageName: String, root: WalkNode, shortForm: Boolean) {
         val now = System.currentTimeMillis()
         if (now - lastDumpTime < DUMP_THROTTLE_MS) return
         lastDumpTime = now
 
-        Log.d(SCAN_TAG, "--- window in $packageName (shortForm=${isShortForm(packageName, root)}) ---")
+        Log.d(SCAN_TAG, "--- window in $packageName (shortForm=$shortForm) ---")
         var logged = 0
         NodeWalk.walk(
             root,
@@ -196,30 +152,12 @@ class ZenAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun isDirectMessageScreen(node: WalkNode?, packageName: String): Boolean {
-        if (node == null) return false
-        val keywords = when (packageName) {
-            "com.instagram.android" ->
-                listOf("message...", "messages", "direct", "chats", "active now", "write a message")
-            "com.snapchat.android" ->
-                listOf("chat", "send a chat", "new chat", "friends")
-            else -> return false
-        }
-        return NodeWalk.anyNode(node, depth = 0, maxDepth = 8) { candidate ->
-            val text = candidate.text?.toString()?.lowercase()
-            val desc = candidate.contentDescription?.toString()?.lowercase()
-            (text != null && keywords.any { text.contains(it) }) ||
-                (desc != null && keywords.any { desc.contains(it) })
-        }
-    }
-
     override fun onInterrupt() {
         Log.d(TAG, "Zen service interrupted")
     }
 
     companion object {
         private const val SCAN_TAG = "ZenScan"
-        private const val BLOCK_COOLDOWN_MS = 1500L
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
         private const val MAX_DEPTH = 30
         private const val MAX_NODES = 2000

@@ -65,7 +65,13 @@ fun AppRuleRows(
                         Switch(
                             checked = on,
                             onCheckedChange = { checked -> onToggle(app.name, checked) },
-                            colors = SwitchDefaults.colors(checkedTrackColor = c.accent)
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = c.accent,
+                                checkedThumbColor = c.onAccent,
+                                uncheckedThumbColor = c.textPrimary,
+                                uncheckedTrackColor = c.textPrimary.copy(alpha = 0.18f),
+                                uncheckedBorderColor = c.textSecondary
+                            )
                         )
                     } else if (on) {
                         Icon(

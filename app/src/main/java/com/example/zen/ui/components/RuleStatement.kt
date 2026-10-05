@@ -7,7 +7,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.zen.data.RuleCopy
 import com.example.zen.persona.LocalPersonaColors
@@ -28,22 +27,28 @@ fun RuleStatement(
     modifier: Modifier = Modifier
 ) {
     val c = LocalPersonaColors.current
-    val sentenceStyle = if (emphasize) {
-        MaterialTheme.typography.bodyLarge.copy(
-            fontWeight = FontWeight.Medium,
-            fontSize = 20.sp,
-            lineHeight = 28.sp,
-            letterSpacing = 0.sp
-        )
-    } else {
-        MaterialTheme.typography.bodyLarge.copy(letterSpacing = 0.sp)
-    }
+    val sentence = RuleCopy.sentence(friendPassEnabled, allowedScrolls)
+    val splitAt = if (emphasize) sentence.indexOf(". ") else -1
+    val lead = if (splitAt > 0) sentence.substring(0, splitAt + 1) else sentence
+    val rest = if (splitAt > 0) sentence.substring(splitAt + 2) else null
     Column(modifier) {
         Text(
-            text = RuleCopy.sentence(friendPassEnabled, allowedScrolls),
-            style = sentenceStyle,
+            text = lead,
+            style = if (emphasize) {
+                MaterialTheme.typography.headlineSmall.copy(fontSize = 22.sp, lineHeight = 28.sp)
+            } else {
+                MaterialTheme.typography.bodyLarge
+            },
             color = c.textPrimary
         )
+        if (rest != null) {
+            Spacer(Modifier.height(ZenSpacing.sm))
+            Text(
+                text = rest,
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.textSecondary
+            )
+        }
         if (includeLimits) {
             RuleCopy.limits(friendPassEnabled, tiktokGuarded, youtubeGuarded).forEach { line ->
                 Spacer(Modifier.height(ZenSpacing.md))

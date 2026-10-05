@@ -337,7 +337,7 @@ private fun StepVoice(selected: Persona, onSelect: (Persona) -> Unit) {
     ) {
         StepTitle(
             title = "Voice",
-            subtitle = "How a block sounds. It reskins Zen. It does not change the rule."
+            subtitle = "Color and type only. A block still says one line, and the rule stays the same."
         )
         PersonaCards(selected = selected, onSelect = onSelect)
     }
@@ -362,9 +362,15 @@ private fun StepLock(password: String, onPasswordChange: (String) -> Unit) {
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = c.textPrimary,
+                unfocusedTextColor = c.textPrimary,
                 focusedBorderColor = c.accent,
+                unfocusedBorderColor = c.textSecondary,
                 focusedLabelColor = c.accent,
-                cursorColor = c.accent
+                unfocusedLabelColor = c.textSecondary,
+                cursorColor = c.accent,
+                focusedContainerColor = c.cardBackground,
+                unfocusedContainerColor = c.cardBackground
             ),
             modifier = Modifier.fillMaxWidth()
         )

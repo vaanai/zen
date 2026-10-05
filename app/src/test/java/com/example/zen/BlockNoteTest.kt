@@ -49,4 +49,9 @@ class BlockNoteTest {
         assertTrue(BlockNote.DISMISS_AFTER_MS < 1_000L)
         assertTrue(BlockNote.DISMISS_AFTER_MS >= 600L)
     }
+
+    @Test
+    fun noteDoesNotTakeTheNextTap() {
+        assertTrue(BlockNote.PASSES_TOUCHES)
+    }
 }

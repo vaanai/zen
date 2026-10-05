@@ -1,6 +1,7 @@
 package com.example.zen.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,9 +22,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.sp
 import com.example.zen.data.GuardMode
 import com.example.zen.persona.LocalPersonaColors
+import com.example.zen.ui.design.ZenElevation
 import com.example.zen.ui.design.ZenRadius
 import com.example.zen.ui.design.ZenSpacing
 
@@ -120,7 +121,7 @@ private fun FeedScrollPicker(
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = ZenSpacing.xs)) {
         Text(
             text = "Scrolls on a feed you open yourself",
-            style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
+            style = MaterialTheme.typography.bodyMedium,
             color = c.textSecondary
         )
         Spacer(Modifier.height(ZenSpacing.sm))
@@ -134,7 +135,12 @@ private fun FeedScrollPicker(
                     modifier = Modifier
                         .weight(1f)
                         .clip(ZenRadius.chip)
-                        .background(if (on) c.accent else c.textPrimary.copy(alpha = 0.06f))
+                        .background(if (on) c.accent else c.textPrimary.copy(alpha = if (c.isLight) 0.06f else 0.08f))
+                        .border(
+                            ZenElevation.hairline,
+                            if (on) c.accent else c.textSecondary.copy(alpha = 0.7f),
+                            ZenRadius.chip
+                        )
                         .clickable { onSelect(n) }
                         .padding(vertical = ZenSpacing.md),
                     contentAlignment = Alignment.Center
@@ -142,7 +148,7 @@ private fun FeedScrollPicker(
                     Text(
                         text = n.toString(),
                         style = MaterialTheme.typography.titleMedium,
-                        color = if (on) c.gradient.first() else c.textPrimary
+                        color = if (on) c.onAccent else c.textPrimary
                     )
                 }
             }

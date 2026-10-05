@@ -56,16 +56,15 @@ fun GlassCard(
     val c = LocalPersonaColors.current
     val haze = LocalHazeState.current
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, label = "cardPress")
-    val lift = if (c.isLight) Color.Black else c.accent
 
     val glass = Modifier
         .scale(scale)
         .shadow(
-            elevation = if (c.isLight) ZenElevation.ambient else ZenElevation.glow,
+            elevation = ZenElevation.ambient,
             shape = shape,
             clip = false,
-            ambientColor = lift.copy(alpha = if (c.isLight) 0.16f else 0.28f),
-            spotColor = lift.copy(alpha = if (c.isLight) 0.08f else 0.16f)
+            ambientColor = Color.Black.copy(alpha = if (c.isLight) 0.12f else 0.36f),
+            spotColor = Color.Black.copy(alpha = if (c.isLight) 0.08f else 0.28f)
         )
         .clip(shape)
         .then(
@@ -74,7 +73,7 @@ fun GlassCard(
                     state = haze,
                     style = HazeStyle(
                         tints = listOf(HazeTint(c.cardBackground)),
-                        blurRadius = 22.dp,
+                        blurRadius = 12.dp,
                         noiseFactor = 0f,
                         fallbackTint = HazeTint(c.cardBackground)
                     )

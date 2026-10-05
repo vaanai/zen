@@ -1,8 +1,8 @@
 package com.example.zen.persona
 
 /**
- * The four personalities. The selected persona reskins the app (theme, typography, and the
- * voice on home and onboarding). A block keeps that color and type on one short note.
+ * The four personalities. The selected persona reskins theme and typography.
+ * A block keeps that color and type on one short note. The words do not change.
  * See [PersonaPalette] for visuals and [LineLibrary] for copy.
  */
 enum class Persona(
@@ -18,28 +18,28 @@ enum class Persona(
     GOBLIN(
         id = "GOBLIN",
         displayName = "The Goblin",
-        tagline = "Dark, sarcastic, and weirdly motivating. Roasts you off the feed.",
+        tagline = "Dark color, plain type.",
         statusBadge = "GOBLIN MODE ACTIVE",
         glyph = "👺" // ogre
     ),
     COACH(
         id = "COACH",
         displayName = "The Coach",
-        tagline = "High-energy hype to get you off the feed and into the real game.",
+        tagline = "Bright color, plain type.",
         statusBadge = "COACH MODE — TRAINING",
         glyph = "💪" // flexed biceps
     ),
     ZEN(
         id = "ZEN",
         displayName = "Zen",
-        tagline = "Calm, quiet, and gently uncompromising.",
+        tagline = "Warm paper, quiet color.",
         statusBadge = "ZEN MODE",
         glyph = "🪷" // lotus
     ),
     SAGE(
         id = "SAGE",
         displayName = "The Sage",
-        tagline = "An old philosopher who is mildly disappointed in you.",
+        tagline = "Serif on parchment.",
         statusBadge = "THE SAGE IS WATCHING",
         glyph = "🏺" // amphora
     );

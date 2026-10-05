@@ -3,16 +3,11 @@ package com.example.zen.ui.design
 import androidx.compose.ui.unit.dp
 
 /**
- * Depth tokens. Light personas (Zen/Sage) read best with a soft ambient drop shadow; dark
- * personas (Goblin/Coach) read best with a faint accent glow. [com.example.zen.ui.components.GlassCard]
- * chooses between them based on the persona's `isLight` flag.
+ * Depth tokens. Cards use one soft shadow. An accent glow behind every card muddies the type.
  */
 object ZenElevation {
-    /** Ambient drop-shadow radius for light-surface personas. */
-    val ambient = 12.dp
-
-    /** Accent-glow radius behind cards for dark-surface personas. */
-    val glow = 24.dp
+    /** Drop-shadow radius for cards. */
+    val ambient = 8.dp
 
     /** Hairline border width used for the top-lit edge on glass surfaces. */
     val hairline = 1.dp

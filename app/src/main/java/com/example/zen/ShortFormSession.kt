@@ -17,6 +17,10 @@ package com.example.zen
  *
  * An unarmed entry with allowance 0 still blocks on landing. The allowance is not how a friend
  * session stays open.
+ *
+ * [onBlocked] also latches the surface Back returns to. A later event that still looks like
+ * that viewer does not block again and does not press Back again. A real non-viewer window
+ * (Home, the inbox) clears the latch, so the next feed the user opens can stop once.
  */
 class ShortFormSession {
 
@@ -46,6 +50,7 @@ class ShortFormSession {
     private var restoreOnNextEnter = false
     private var heldFromFriend = false
     private var scrolls = 0
+    private var returnedByBack = false
 
     /**
      * In-app chat surface. Queues the next new entry only. A live friend session does not read it,
@@ -71,6 +76,7 @@ class ShortFormSession {
         unarmedPackage = null
         heldFromFriend = false
         scrolls = 0
+        returnedByBack = false
     }
 
     /**
@@ -87,6 +93,7 @@ class ShortFormSession {
         heldFromFriend = false
         unarmedPackage = null
         scrolls = 0
+        returnedByBack = true
     }
 
     fun onViewer(
@@ -97,11 +104,20 @@ class ShortFormSession {
     ): Decision {
         applyEnabled(settings)
         if (!visible) {
+            // Home, the inbox, or a post. The surface Back returned to is gone.
+            returnedByBack = false
             if (friendPackage == null) {
                 unarmedPackage = null
                 scrolls = 0
             }
             return Decision(block = false, armed = friendPackage != null)
+        }
+        if (returnedByBack) {
+            if (settings.friendPassEnabled && restoreOnNextEnter && packageName == rememberedFriendPackage) {
+                returnedByBack = false
+                return resumeFriend(packageName)
+            }
+            return Decision(block = false, armed = false)
         }
         return enter(packageName, now, settings)
     }
@@ -115,6 +131,9 @@ class ShortFormSession {
         applyEnabled(settings)
         if (!visible) {
             return onViewer(visible = false, packageName, now, settings)
+        }
+        if (returnedByBack) {
+            return onViewer(visible = true, packageName, now, settings)
         }
         if (friendPackage == packageName) {
             return Decision(block = false, armed = true)

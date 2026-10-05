@@ -187,6 +187,23 @@ class ShortFormSessionTest {
     }
 
     @Test
+    fun blockDoesNotRepeatOnTheSurfaceBackReturnsTo() {
+        val landed = session.onViewer(true, IG, 0, strict)
+        assertTrue(landed.block)
+        session.onBlocked()
+
+        val stillThere = session.onViewer(true, IG, 1_000, strict)
+        assertFalse(stillThere.block)
+        val scrolled = session.onScroll(true, IG, 1_200, strict)
+        assertFalse(scrolled.block)
+
+        // Home is not the viewer. That clears the latch, so a later open can stop once.
+        assertFalse(session.onViewer(false, IG, 2_000, strict).block)
+        val again = session.onViewer(true, IG, 3_000, strict)
+        assertTrue(again.block)
+    }
+
+    @Test
     fun externalMessenger_doesNotByItselfRearmEndedSession() {
         session.noteExternalMessenger(0)
         val armed = session.onViewer(true, IG, 500, strict)

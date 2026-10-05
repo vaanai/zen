@@ -2,12 +2,6 @@ package com.example.zen.ui.main
 
 import android.content.Intent
 import android.provider.Settings
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -40,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.zen.persona.LocalPersonaColors
 import com.example.zen.ui.components.AppRuleRows
@@ -95,10 +88,10 @@ fun MainScreen(
                 item {
                     if (uiState.isAccessibilityEnabled) {
                         Text(
-                            text = "On.",
-                            style = MaterialTheme.typography.bodyLarge.copy(letterSpacing = 0.sp),
+                            text = "Accessibility is on.",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = c.textSecondary,
-                            modifier = Modifier.padding(top = ZenSpacing.sm)
+                            modifier = Modifier.padding(top = ZenSpacing.md)
                         )
                     } else {
                         GuardOffCard()
@@ -174,18 +167,10 @@ private fun RuleHero(
     }
 }
 
-/** The only motion on this screen, and only while the guard is off. */
 @Composable
 private fun GuardOffCard() {
     val context = LocalContext.current
     val c = LocalPersonaColors.current
-    val pulse = rememberInfiniteTransition(label = "guardOff")
-    val pulseAlpha by pulse.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
-        label = "guardOffAlpha"
-    )
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     GlassCard(
@@ -209,7 +194,7 @@ private fun GuardOffCard() {
                 Spacer(Modifier.height(ZenSpacing.xs))
                 Text(
                     text = "Accessibility is off. Zen can't keep this rule until it's on.",
-                    style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = c.textSecondary
                 )
             }
@@ -217,7 +202,7 @@ private fun GuardOffCard() {
             Icon(
                 Icons.Default.Warning,
                 contentDescription = "Off",
-                tint = c.warn.copy(alpha = pulseAlpha),
+                tint = c.warn,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -246,7 +231,7 @@ private fun Captions(savesToday: Int, usageGranted: Boolean, minutes: Long) {
             )
             Text(
                 text = "$minutes min",
-                style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.sp),
+                style = MaterialTheme.typography.bodyMedium,
                 color = c.textPrimary
             )
         }

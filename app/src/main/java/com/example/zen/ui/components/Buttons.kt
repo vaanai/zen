@@ -32,9 +32,9 @@ fun PrimaryButton(
         contentPadding = PaddingValues(horizontal = 24.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = c.accent,
-            contentColor = c.gradient.first(),
-            disabledContainerColor = c.accent.copy(alpha = 0.3f),
-            disabledContentColor = c.gradient.first().copy(alpha = 0.5f)
+            contentColor = c.onAccent,
+            disabledContainerColor = c.accent.copy(alpha = 0.38f),
+            disabledContentColor = c.onAccent.copy(alpha = 0.7f)
         )
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge)

@@ -11,8 +11,11 @@ object BlockNote {
     const val LINE = "That's the feed."
 
     /**
-     * How long the note stays. Auto-dismiss is the path that has to work; a tap may
-     * remove it sooner. Under a second, so the social app remains the app.
+     * How long the note stays. The timer removes it. A tap is not part of that,
+     * because the tap belongs to the social app.
      */
     const val DISMISS_AFTER_MS = 800L
+
+    /** The note is drawn over the app and does not take the next touch. */
+    const val PASSES_TOUCHES = true
 }

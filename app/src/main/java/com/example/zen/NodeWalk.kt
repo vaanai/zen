@@ -1,6 +1,7 @@
 package com.example.zen
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
@@ -16,6 +17,16 @@ internal interface WalkNode {
     val text: CharSequence?
     val contentDescription: CharSequence?
     val packageName: CharSequence?
+
+    /** False for a pager Instagram keeps in the hierarchy while another tab is showing. */
+    val visibleToUser: Boolean
+
+    /** Screen bounds. A viewer id at 0×0 is the home-screen ghost, not the player. */
+    val width: Int
+    val height: Int
+
+    /** True when this node is the selected tab. The selected Home tab is not a viewer. */
+    val selected: Boolean
 }
 
 internal class FrameworkNode(
@@ -43,6 +54,24 @@ internal class FrameworkNode(
 
     override val packageName: CharSequence?
         get() = node.packageName
+
+    override val visibleToUser: Boolean
+        get() = node.isVisibleToUser
+
+    override val width: Int
+        get() = bounds().width()
+
+    override val height: Int
+        get() = bounds().height()
+
+    override val selected: Boolean
+        get() = node.isSelected
+
+    private fun bounds(): Rect {
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        return rect
+    }
 }
 
 internal fun AccessibilityService.obtainActiveWindow(): FrameworkNode? =

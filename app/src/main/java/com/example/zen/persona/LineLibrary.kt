@@ -20,13 +20,6 @@ object LineLibrary {
         return pool[Random.nextInt(pool.size)]
     }
 
-    fun welcome(persona: Persona): String = when (persona) {
-        Persona.GOBLIN -> "Alright, gremlin. I'll be watching that scroll finger."
-        Persona.COACH -> "Let's go! I'm in your corner now. We don't lose to a feed."
-        Persona.ZEN -> "I'm here now. Breathe. We'll keep things quiet together."
-        Persona.SAGE -> "So. You have enlisted a philosopher to mind your attention. Wise, for once."
-    }
-
     private fun tierFor(relapseCount: Int): Int = when {
         relapseCount <= 1 -> 0
         relapseCount <= 3 -> 1

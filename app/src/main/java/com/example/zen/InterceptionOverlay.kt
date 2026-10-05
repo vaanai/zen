@@ -11,8 +11,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -58,8 +56,7 @@ import kotlinx.coroutines.delay
  * [WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY] owned by the accessibility service.
  *
  * The window stays clear except for one sentence. [BlockNote.DISMISS_AFTER_MS] removes it.
- * A tap anywhere on the window may dismiss early. The window is not focusable and is not
- * [WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE]; the timer does not depend on the tap.
+ * The window does not take touches, so the note cannot steal the tap meant for the app.
  *
  * The overlay lives outside an Activity, so the [ComposeView] gets its own lifecycle,
  * saved-state, and view-model owners.
@@ -84,17 +81,23 @@ class InterceptionOverlay(private val service: AccessibilityService) {
                 setViewTreeSavedStateRegistryOwner(lifecycleOwner)
                 setContent {
                     PersonaTheme(persona) {
-                        BlockContent(onDismiss = { removeNow() })
+                        BlockContent()
                     }
                 }
             }
 
+            val touch = if (BlockNote.PASSES_TOUCHES) {
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            } else {
+                0
+            }
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    touch,
                 PixelFormat.TRANSLUCENT
             )
 
@@ -137,7 +140,7 @@ private const val NOTE_FADE_MS = 140
 private const val NOTE_VEIL_ALPHA = 0.58f
 
 @Composable
-private fun BlockContent(onDismiss: () -> Unit) {
+private fun BlockContent() {
     val c = LocalPersonaColors.current
     var shown by remember { mutableStateOf(false) }
     val presence by animateFloatAsState(
@@ -158,11 +161,6 @@ private fun BlockContent(onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss
-            )
             .navigationBarsPadding()
             .padding(horizontal = ZenSpacing.xl, vertical = ZenSpacing.xxl),
         contentAlignment = Alignment.BottomCenter

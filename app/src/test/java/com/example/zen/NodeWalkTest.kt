@@ -342,7 +342,11 @@ class NodeWalkTest {
         assertTrue(source.contains("obtainActiveWindow()"))
         assertTrue(source.contains("useObtained"))
         assertTrue(source.contains("const val MAX_NODES = 2000"))
-        assertTrue(source.contains("maxDepth = 8"))
+        assertTrue(source.contains("ScreenClass.read"))
+
+        val screen = sourceFile("ScreenClass.kt")
+        assertTrue(screen.contains("const val MAX_NODES = 2000"))
+        assertTrue(screen.contains("const val MAX_DEPTH = 30"))
 
         val walk = sourceFile("NodeWalk.kt")
         assertTrue(walk.contains("rootInActiveWindow"))
@@ -420,6 +424,10 @@ class NodeWalkTest {
         override val text: CharSequence? = null
         override val contentDescription: CharSequence? = null
         override val packageName: CharSequence? = null
+        override val visibleToUser: Boolean = true
+        override val width: Int = 0
+        override val height: Int = 0
+        override val selected: Boolean = false
 
         fun markVisit(): String {
             check(recycleCount == 0) { "$name visited after recycle" }
