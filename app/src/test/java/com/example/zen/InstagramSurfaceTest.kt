@@ -236,11 +236,9 @@ class InstagramSurfaceTest {
         assertTrue(session.onViewer(player.shortForm, YT, 0, strict, player.clearsLatch).block)
         session.onBlocked()
 
+        // The player id is still in the window, so the shelf beside it is not an exit.
+        // A container or the watch page is not the shelf either.
         val misses = listOf(
-            node(id = "com.google.android.youtube:id/reel_recycler", w = 1080, h = 1920),
-            node(id = "com.google.android.youtube:id/shorts_shelf", w = 1080, h = 400),
-            node(id = "com.google.android.youtube:id/shorts_container", w = 1080, h = 1920),
-            node(id = "com.google.android.youtube:id/watch_while_layout", w = 1080, h = 1920),
             node(
                 kids = listOf(
                     node(id = "com.google.android.youtube:id/reel_recycler", desc = "Shorts", w = 1080, h = 1920),
@@ -252,6 +250,14 @@ class InstagramSurfaceTest {
                     ),
                 )
             ),
+            node(
+                kids = listOf(
+                    node(id = "com.google.android.youtube:id/shorts_shelf", w = 1080, h = 400),
+                    node(id = "com.google.android.youtube:id/reel_watch_fragment_root", w = 0, h = 0),
+                )
+            ),
+            node(id = "com.google.android.youtube:id/shorts_container", w = 1080, h = 1920),
+            node(id = "com.google.android.youtube:id/watch_while_layout", w = 1080, h = 1920),
         )
         misses.forEachIndexed { index, window ->
             val reading = ScreenClass.read(YT, window)
@@ -304,12 +310,9 @@ class InstagramSurfaceTest {
         assertTrue(session.onViewer(player.shortForm, SNAP, 0, strict, player.clearsLatch).block)
         session.onBlocked()
 
+        // The player id is still in the window, so the tab beside it is not an exit.
+        // A container, a recycler, or the bare spotlight id is not the tab.
         val misses = listOf(
-            node(id = "com.snapchat.android:id/spotlight_tab", desc = "Spotlight"),
-            node(id = "com.snapchat.android:id/spotlight_container", w = 1080, h = 400),
-            node(id = "com.snapchat.android:id/bottom_spotlight", desc = "Spotlight"),
-            node(id = "com.snapchat.android:id/spotlight_recycler", w = 1080, h = 800),
-            node(id = "com.snapchat.android:id/spotlight"),
             node(
                 kids = listOf(
                     node(id = "com.snapchat.android:id/spotlight_tab", desc = "Spotlight"),
@@ -321,6 +324,16 @@ class InstagramSurfaceTest {
                     ),
                 )
             ),
+            node(
+                kids = listOf(
+                    node(id = "com.snapchat.android:id/spotlight_container", w = 1080, h = 400),
+                    node(id = "com.snapchat.android:id/spotlight_player", w = 0, h = 0),
+                )
+            ),
+            node(id = "com.snapchat.android:id/spotlight_container", w = 1080, h = 400),
+            node(id = "com.snapchat.android:id/bottom_spotlight", desc = "Spotlight"),
+            node(id = "com.snapchat.android:id/spotlight_recycler", w = 1080, h = 800),
+            node(id = "com.snapchat.android:id/spotlight"),
         )
         misses.forEachIndexed { index, window ->
             val reading = ScreenClass.read(SNAP, window)
@@ -494,16 +507,16 @@ class InstagramSurfaceTest {
         val back = ScreenClass.read(packageName, returned)
         val player = ScreenClass.read(packageName, viewer)
         assertFalse(back.shortForm)
-        assertFalse(back.clearsLatch)
+        assertTrue(back.clearsLatch)
         assertTrue(player.shortForm)
         assertFalse(player.clearsLatch)
         assertTrue(session.onViewer(player.shortForm, packageName, 0, strict, player.clearsLatch).block)
         session.onBlocked()
         assertFalse(session.onViewer(player.shortForm, packageName, 400, strict, player.clearsLatch).block)
         assertFalse(session.onScroll(player.shortForm, packageName, 500, strict, player.clearsLatch).block)
-        // The shelf or the Spotlight tab is still that player. It does not press Back again.
+        // The shelf or the Spotlight tab, with the player id gone, is a real return.
         assertFalse(session.onViewer(back.shortForm, packageName, 800, strict, back.clearsLatch).block)
-        assertFalse(session.onViewer(player.shortForm, packageName, 2_000, strict, player.clearsLatch).block)
+        assertTrue(session.onViewer(player.shortForm, packageName, 2_000, strict, player.clearsLatch).block)
     }
 
     private fun decide(reading: ScreenClass.Reading): ShortFormSession.Decision {

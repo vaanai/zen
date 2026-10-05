@@ -19,9 +19,10 @@ package com.example.zen
  * not a player. TikTok opens on the feed, so that landing may stop, once. A non-feed
  * surface in that tree is not a viewer. A block does not run again on the surface Back
  * returns to; that latch lives in [ShortFormSession]. A one-frame miss while the player
- * is still up does not clear it, including YouTube or Snapchat chrome that stays with
- * the player, and a TikTok line that only reads like a profile or a composer. A null
- * root does not. Home does.
+ * is still up does not clear it. YouTube or Snapchat chrome does not either, while the
+ * player id is still in the window. The Shorts shelf and the Spotlight tab do, once
+ * that id is gone. A TikTok line that only reads like a profile or a composer does not.
+ * A null root does not. Home does.
  */
 internal object ScreenClass {
 
@@ -50,6 +51,9 @@ internal object ScreenClass {
         private var homeTabSelected = false
         private var personOnScreen = false
         private var navigatedAway = false
+        private var playerIdInTree = false
+        private var shelfOnScreen = false
+        private var spotlightTabOnScreen = false
         private var tiktokNonFeed = false
         private var tiktokLeftFeed = false
 
@@ -75,13 +79,22 @@ internal object ScreenClass {
                     if (onScreen && node.selected && suffix in DESTINATION_TABS) navigatedAway = true
                 }
                 YOUTUBE -> {
-                    // A shelf, a recycler, and the watch page stay up inside the player.
-                    // They are not a viewer, and they are not Home.
-                    if (onScreen && youtubePlayer(suffix)) viewerOnScreen = true
+                    // The shelf stays up inside the player. It is an exit only once the
+                    // player id is gone from the window.
+                    if (youtubePlayer(suffix)) {
+                        playerIdInTree = true
+                        if (onScreen) viewerOnScreen = true
+                    }
+                    if (onScreen && youtubeShelf(suffix)) shelfOnScreen = true
                 }
                 SNAPCHAT -> {
-                    // Spotlight chrome stays up with the player. It is not a destination.
-                    if (onScreen && snapViewer(suffix)) viewerOnScreen = true
+                    // The Spotlight tab stays up with the player. It is an exit only once
+                    // the player id is gone.
+                    if (snapViewer(suffix)) {
+                        playerIdInTree = true
+                        if (onScreen) viewerOnScreen = true
+                    }
+                    if (onScreen && suffix == SPOTLIGHT_TAB) spotlightTabOnScreen = true
                     if (onScreen && snapPerson(suffix, node)) personOnScreen = true
                 }
             }
@@ -103,7 +116,9 @@ internal object ScreenClass {
                 shortForm -> false
                 homeTabSelected -> true
                 viewerOnScreen -> false
-                else -> navigatedAway || personOnScreen
+                // Chrome around a player id that this frame cannot see is still that player.
+                playerIdInTree -> false
+                else -> navigatedAway || personOnScreen || shelfOnScreen || spotlightTabOnScreen
             }
             return Reading(
                 shortForm = shortForm,
@@ -130,10 +145,16 @@ internal object ScreenClass {
         return suffix in YOUTUBE_VIEWER
     }
 
+    /** The Shorts shelf. Not `shorts_container` and not `watch_while_layout`. */
+    private fun youtubeShelf(suffix: String?): Boolean {
+        if (suffix == null) return false
+        return suffix.contains("recycler") || suffix.contains("shelf")
+    }
+
     /**
      * A spotlight player. The tab, its label, a recycler, and any other spotlight id are
-     * the chrome Snapchat leaves up outside the player. That chrome does not clear the
-     * latch: it stays on screen when the player id drops for a frame.
+     * the chrome Snapchat leaves up outside the player. The tab clears the latch only
+     * when no player id remains in the window.
      */
     private fun snapViewer(suffix: String?): Boolean {
         if (suffix == null || !suffix.contains("spotlight")) return false
@@ -192,6 +213,7 @@ internal object ScreenClass {
     private const val YOUTUBE = "com.google.android.youtube"
     private const val SNAPCHAT = "com.snapchat.android"
     private const val HOME_TAB = "feed_tab"
+    private const val SPOTLIGHT_TAB = "spotlight_tab"
 
     /** The player. Not the tab, not a post, not the 0×0 pager left on Home. */
     private val INSTAGRAM_VIEWER = setOf(
