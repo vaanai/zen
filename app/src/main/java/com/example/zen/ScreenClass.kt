@@ -13,6 +13,12 @@ package com.example.zen
  * A Reels / Shorts / Spotlight / Messages label on the chrome is not a viewer and not a
  * person surface. Home, the inbox, a DM, and a normal post are not short-form. The player
  * is a viewer only when its own id is on screen and the selected tab is not Home.
+ *
+ * YouTube's Shorts shelf, the word "Shorts", and a recycler are the same kind of miss:
+ * they sit on Home. The Shorts player is the viewer. Snapchat's Spotlight tab label is
+ * not a player. TikTok opens on the feed, so that landing may stop, once. A non-feed
+ * surface in that tree is not a viewer. A block does not run again on the surface Back
+ * returns to; that latch lives in [ShortFormSession].
  */
 internal object ScreenClass {
 
@@ -22,24 +28,31 @@ internal object ScreenClass {
     )
 
     fun read(packageName: String, root: WalkNode?): Reading {
-        if (packageName in TIKTOK) return Reading(shortForm = true, personSurface = false)
-        if (root == null) return Reading(shortForm = false, personSurface = false)
+        // Opening TikTok is the feed, including a missed frame. A null root must not look
+        // like a non-feed surface, or the one-block latch would clear and Back would fire again.
+        val tiktok = packageName in TIKTOK
+        if (root == null) return Reading(shortForm = tiktok, personSurface = false)
         val seen = Seen()
         NodeWalk.walk(root, MAX_NODES, MAX_DEPTH) { node ->
             seen.take(packageName, node)
             false
         }
-        return seen.reading()
+        return seen.reading(tiktok)
     }
 
     private class Seen {
         private var viewerOnScreen = false
         private var homeTabSelected = false
         private var personOnScreen = false
+        private var tiktokNonFeed = false
 
         fun take(packageName: String, node: WalkNode) {
             val suffix = idSuffix(node.viewIdResourceName)
             val onScreen = node.visibleToUser && node.width > 0 && node.height > 0
+            if (packageName in TIKTOK) {
+                if (onScreen && tiktokNonFeed(suffix, node)) tiktokNonFeed = true
+                return
+            }
             when (packageName) {
                 INSTAGRAM -> {
                     if (onScreen && suffix == HOME_TAB && node.selected) homeTabSelected = true
@@ -47,7 +60,7 @@ internal object ScreenClass {
                     if (onScreen && instagramPerson(suffix, node)) personOnScreen = true
                 }
                 YOUTUBE -> {
-                    if (onScreen && suffix in YOUTUBE_VIEWER) viewerOnScreen = true
+                    if (onScreen && youtubePlayer(suffix)) viewerOnScreen = true
                 }
                 SNAPCHAT -> {
                     if (onScreen && snapViewer(suffix)) viewerOnScreen = true
@@ -56,11 +69,17 @@ internal object ScreenClass {
             }
         }
 
-        fun reading(): Reading = Reading(
-            // Home and an open chat win over a viewer id sitting in the same window.
-            shortForm = viewerOnScreen && !homeTabSelected && !personOnScreen,
-            personSurface = personOnScreen,
-        )
+        fun reading(tiktok: Boolean): Reading {
+            if (tiktok) {
+                // The inbox does not arm a friend session. TikTok cannot tell a friend from For You.
+                return Reading(shortForm = !tiktokNonFeed, personSurface = false)
+            }
+            return Reading(
+                // Home and an open chat win over a viewer id sitting in the same window.
+                shortForm = viewerOnScreen && !homeTabSelected && !personOnScreen,
+                personSurface = personOnScreen,
+            )
+        }
     }
 
     private fun instagramPerson(suffix: String?, node: WalkNode): Boolean {
@@ -70,9 +89,47 @@ internal object ScreenClass {
         return blob.isNotEmpty() && PERSON_PHRASES.any { blob.contains(it) }
     }
 
+    /**
+     * The Shorts player. A shelf id and a recycler are on Home, including one whose name
+     * also contains "player". The word "Shorts" is not an id and is not read here.
+     */
+    private fun youtubePlayer(suffix: String?): Boolean {
+        if (suffix == null) return false
+        if (suffix.contains("recycler") || suffix.contains("shelf")) return false
+        return suffix in YOUTUBE_VIEWER
+    }
+
+    /**
+     * A spotlight player. The tab, its label, a recycler, and any other spotlight id are
+     * the chrome Snapchat leaves up outside the player.
+     */
     private fun snapViewer(suffix: String?): Boolean {
         if (suffix == null || !suffix.contains("spotlight")) return false
-        return CHROME_WORDS.none { suffix.contains(it) }
+        if (CHROME_WORDS.any { suffix.contains(it) }) return false
+        if (suffix.contains("recycler") || suffix.contains("shelf")) return false
+        return SNAP_PLAYER.any { suffix.contains(it) }
+    }
+
+    /**
+     * A TikTok surface that is not the feed. The Inbox and Profile tabs sit on the feed
+     * too; only the selected tab, or a screen id that is not chrome, counts.
+     */
+    private fun tiktokNonFeed(suffix: String?, node: WalkNode): Boolean {
+        if (suffix != null &&
+            TIKTOK_CHROME.none { suffix.contains(it) } &&
+            TIKTOK_NON_FEED_IDS.any { suffix.contains(it) }
+        ) {
+            return true
+        }
+        if (node.selected && exactLabel(node) in TIKTOK_NON_FEED_TABS) return true
+        val label = exactLabel(node)
+        return label.isNotEmpty() && label in TIKTOK_NON_FEED_PHRASES
+    }
+
+    private fun exactLabel(node: WalkNode): String {
+        val text = node.text?.toString()?.trim()?.lowercase().orEmpty()
+        if (text.isNotEmpty()) return text
+        return node.contentDescription?.toString()?.trim()?.lowercase().orEmpty()
     }
 
     private fun snapPerson(suffix: String?, node: WalkNode): Boolean {
@@ -106,13 +163,23 @@ internal object ScreenClass {
         "root_clips_layout",
     )
 
-    /** The Shorts player. `reel_recycler` is the shelf on the YouTube home screen. */
+    /**
+     * The Shorts player. Each id is the full-screen player, not the shelf.
+     * `reel_recycler`, `shorts_shelf`, and `shorts_container` are Home.
+     */
     private val YOUTUBE_VIEWER = setOf(
         "reel_watch_fragment_root",
         "reel_player_page_container",
-        "shorts_player",
+        "reel_player_underlay",
+        "reel_player_underlay_view",
         "reel_watch_player",
+        "shorts_player",
+        "shorts_player_view",
+        "shorts_video_pager",
     )
+
+    /** Player-shaped spotlight ids. "spotlight" alone is the tab. */
+    private val SNAP_PLAYER = listOf("player", "pager", "playback")
 
     private val CHROME_TABS = setOf(
         "feed_tab",
@@ -124,12 +191,21 @@ internal object ScreenClass {
         "news_tab",
     )
 
+    /**
+     * Inbox and DM thread ids. Not the Messages tab (`direct_tab`) and not the word
+     * "messages". A thread whose bubbles or composer use these still arms.
+     */
     private val PERSON_ID_PARTS = listOf(
         "inbox",
         "direct_thread",
         "thread_composer",
         "message_composer",
         "composer_content",
+        "direct_text_message",
+        "direct_visual_message",
+        "direct_link_message",
+        "direct_composer",
+        "thread_message",
     )
 
     /** Composer copy. The word "messages" is the tab, and it is not one of these. */
@@ -144,6 +220,30 @@ internal object ScreenClass {
     )
 
     private val CHROME_WORDS = listOf("tab", "button", "nav", "icon", "tray", "label", "bar")
+
+    /** Screen ids. A tab id that merely contains "inbox" is still the feed. */
+    private val TIKTOK_NON_FEED_IDS = listOf(
+        "inbox_list",
+        "inbox_recycler",
+        "chat_list",
+        "message_list",
+        "notification_list",
+        "profile_header",
+        "edit_profile",
+        "search_result",
+    )
+
+    /** Selected tab labels that replace the feed. Unselected, they are chrome on For You. */
+    private val TIKTOK_NON_FEED_TABS = setOf("inbox", "profile", "search")
+
+    /** Composer and profile copy. Not "For You", and not the unselected tab label. */
+    private val TIKTOK_NON_FEED_PHRASES = setOf(
+        "edit profile",
+        "write a message",
+        "message...",
+    )
+
+    private val TIKTOK_CHROME = listOf("tab", "button", "nav", "icon", "tray", "label", "bar")
 
     private const val MAX_NODES = 2000
     private const val MAX_DEPTH = 30
